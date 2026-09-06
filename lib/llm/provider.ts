@@ -21,15 +21,19 @@ import type { LanguageModel } from "ai";
  * provider está ativo.
  */
 export function getModel(): LanguageModel {
-  const provider = process.env.LLM_PROVIDER ?? "google";
+  // "||" em vez de "??" de propósito: uma env var criada com valor em
+  // branco (comum em painéis como o da Vercel) chega como string vazia,
+  // não como undefined — "??" não pega esse caso e derruba o switch no
+  // default. "||" trata "" como "não definido" também.
+  const provider = process.env.LLM_PROVIDER || "google";
 
   switch (provider) {
     case "google":
       // Chave lida automaticamente de GOOGLE_GENERATIVE_AI_API_KEY.
-      return google(process.env.GOOGLE_MODEL ?? "gemini-3.5-flash");
+      return google(process.env.GOOGLE_MODEL || "gemini-3.5-flash");
 
     case "openai":
-      return openai(process.env.OPENAI_MODEL ?? "gpt-4o-mini");
+      return openai(process.env.OPENAI_MODEL || "gpt-4o-mini");
 
     default:
       throw new Error(
