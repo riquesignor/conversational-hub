@@ -9,6 +9,17 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="pt-BR" className="h-full antialiased">
+      <head>
+        {/* Link direto (não next/font/google) de propósito: next/font busca o
+            arquivo da fonte durante o build, o que falha em ambientes de CI/
+            sandbox sem saída de rede liberada para fonts.googleapis.com. Um
+            <link> é só uma tag estática — o navegador do visitante busca a
+            fonte em runtime, sem risco nenhum pro build. */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap"
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

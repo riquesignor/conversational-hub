@@ -32,8 +32,22 @@ export async function POST(req: Request) {
     model: getModel(),
     system: SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
+    // Sem isso, um erro do provider (chave inválida, quota, modelo errado
+    // etc.) vira só "An error occurred" pro cliente e some sem deixar
+    // rastro nenhum no log da Vercel. Loga o erro real aqui.
+    onError: ({ error }) => {
+      console.error("[api/chat] streamText error:", error);
+    },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    // Mesma lógica: a AI SDK mascara erros de servidor por padrão pra não
+    // vazar detalhes sensíveis pro cliente. Logamos o erro real aqui
+    // também (fica no Runtime Log da Vercel) e devolvemos uma mensagem
+    // só um pouco mais específica pro usuário final.
+    onError: (error) => {
+      console.error("[api/chat] stream response error:", error);
+      return "Erro ao gerar resposta. Verifique a chave de API e o provider configurados.";
+    },
+  });
 }
-//se mata
