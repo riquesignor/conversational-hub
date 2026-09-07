@@ -18,6 +18,24 @@
   --accent-strong: #ae1800;
   --on-accent: #fff2ef;
   --input-bg: #ffffff;
+
+  /* Tint muito claro do acento — fundo de item selecionado (sidebar, menu
+     de persona). Separado de --on-accent (que é texto sobre fundo sólido de
+     acento, não muda com o tema) porque este precisa inverter no dark. */
+  --accent-tint: #fff2ef;
+
+  /* Bloco de código e bolha do usuário: tons de tinta fixos (não variam com
+     o tema — convenção comum de blocos de código/bolhas escuras, igual
+     GitHub/editores). Vêm da rampa neutra do design system importado. */
+  --code-bg: #2d2b2b;
+  --code-text: #f8f4f4;
+  --code-border: #605d5d;
+  --code-lang: #bab6b6;
+  --code-copy-text: #eae7e7;
+  --user-bubble-bg: #444141;
+  --user-bubble-text: #fff2ef;
+
+  --shadow-dropdown: 0 3px 10px rgba(45, 43, 43, 0.16);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +48,9 @@
     --divider: rgba(243, 241, 240, 0.18);
     --accent-text: #ff9783;
     --input-bg: #232020;
+
+    --accent-tint: rgba(255, 151, 131, 0.14);
+    --shadow-dropdown: 0 3px 10px rgba(0, 0, 0, 0.45);
   }
 }
 
@@ -45,6 +66,14 @@
   --color-accent-strong: var(--accent-strong);
   --color-on-accent: var(--on-accent);
   --color-input-bg: var(--input-bg);
+  --color-accent-tint: var(--accent-tint);
+  --color-code-bg: var(--code-bg);
+  --color-code-text: var(--code-text);
+  --color-code-border: var(--code-border);
+  --color-code-lang: var(--code-lang);
+  --color-code-copy-text: var(--code-copy-text);
+  --color-user-bubble-bg: var(--user-bubble-bg);
+  --color-user-bubble-text: var(--user-bubble-text);
 
   --font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
@@ -55,6 +84,7 @@
   --animate-fade-in-up: fade-in-up 0.3s ease both;
   --animate-chip-in: chip-in 0.35s ease both;
   --animate-presence-pulse: presence-pulse 2.4s ease-in-out infinite;
+  --animate-pop-in: pop-in 0.12s ease both;
 }
 
 @keyframes dot-pulse {
@@ -99,6 +129,17 @@
   }
   50% {
     opacity: 0.35;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

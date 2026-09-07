@@ -9,9 +9,6 @@ import { getPersona } from "@/lib/personas";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const SESSION_COOKIE = "chat_session_id";
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 dias
-
 // Instruções que valem pra qualquer persona (ferramentas disponíveis,
 // idioma) — o tom de voz em si vive em `lib/personas.ts` e é concatenado
 // em `buildSystemPrompt` abaixo. Separado assim pra trocar de persona
@@ -36,19 +33,6 @@ function getClientIp(req: Request): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-function getOrCreateSessionId(req: Request): { sessionId: string; isNew: boolean } {
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const match = cookieHeader
-    .split(";")
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${SESSION_COOKIE}=`));
-
-  if (match) {
-    return { sessionId: match.slice(SESSION_COOKIE.length + 1), isNew: false };
-  }
-  return { sessionId: randomUUID(), isNew: true };
-}
-
 function lastUserText(messages: UIMessage[]): string {
   const last = [...messages].reverse().find((m) => m.role === "user");
   if (!last) return "";
@@ -69,11 +53,21 @@ export async function POST(req: Request) {
     );
   }
 
+  // `id` vem automaticamente no corpo da requisição — é o `id` do `useChat`
+  // no cliente (app/page.tsx), que agora é o id da CONVERSA (thread) ativa
+  // na sidebar, não mais um cookie de sessão anônima. Cada thread grava seu
+  // próprio histórico em lib/db, então trocar de conversa na sidebar troca
+  // de "sessionId" de fato — sem precisar de cookie nenhum.
   const {
     messages,
     personaId,
-  }: { messages: UIMessage[]; personaId?: string } = await req.json();
-  const { sessionId, isNew } = getOrCreateSessionId(req);
+    id: threadId,
+  }: { messages: UIMessage[]; personaId?: string; id?: string } = await req.json();
+
+  // threadId sempre deve vir preenchido (a AI SDK inclui automaticamente o
+  // `id` do chat no corpo — ver README, seção "Conversas (threads)"), mas
+  // um fallback aqui evita derrubar a rota se algum dia chegar ausente.
+  const effectiveThreadId = threadId || randomUUID();
 
   // Persistência é best-effort: nunca deve derrubar a resposta do chat.
   // Hoje isso vai pro MemoryConversationStore (lib/db/memory-store.ts) — a
@@ -83,7 +77,7 @@ export async function POST(req: Request) {
   if (userText) {
     getStore()
       .then((store) =>
-        store.appendMessage(sessionId, {
+        store.appendMessage(effectiveThreadId, {
           id: randomUUID(),
           role: "user",
           text: userText,
@@ -107,7 +101,7 @@ export async function POST(req: Request) {
       if (!text) return;
       getStore()
         .then((store) =>
-          store.appendMessage(sessionId, {
+          store.appendMessage(effectiveThreadId, {
             id: randomUUID(),
             role: "assistant",
             text,
@@ -125,14 +119,6 @@ export async function POST(req: Request) {
   });
 
   return result.toUIMessageStreamResponse({
-    // Cookie de sessão anônima — só serve pra agrupar histórico no store
-    // (útil já com o MemoryConversationStore de hoje, essencial quando
-    // virar Firestore). Não identifica a pessoa, é só um UUID aleatório.
-    headers: isNew
-      ? {
-          "Set-Cookie": `${SESSION_COOKIE}=${sessionId}; Path=/; Max-Age=${SESSION_MAX_AGE_SECONDS}; SameSite=Lax`,
-        }
-      : undefined,
     // Mesma lógica: a AI SDK mascara erros de servidor por padrão pra não
     // vazar detalhes sensíveis pro cliente. Logamos o erro real aqui
     // também (fica no Runtime Log da Vercel) e devolvemos uma mensagem
