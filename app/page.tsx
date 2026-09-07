@@ -1,13 +1,16 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, isToolUIPart, getToolName } from "ai";
 import { useEffect, useRef, useState } from "react";
+import { SKILLS_CATALOG } from "@/lib/skills";
+import { renderToolSummary } from "@/lib/skills/render-tool-output";
+import { PERSONAS, DEFAULT_PERSONA_ID } from "@/lib/personas";
 
-// Nome e tagline do bot centralizados aqui — troque à vontade.
+// Nome do bot centralizado aqui — troque à vontade. A tagline não é mais
+// fixa: ela vem da persona selecionada (ver lib/personas.ts), pra refletir
+// o tom escolhido já na tela vazia.
 const BOT_NAME = "Zezinho";
-const TAGLINE =
-  "Pesquiso coisa, destrincho erro chato ou só bato um papo. Manda a boa.";
 
 const SUGGESTED_CHIPS = [
   "Pesquisa algo rápido pra mim",
@@ -23,8 +26,18 @@ const CONTENT_WIDTH = "w-full max-w-2xl mx-auto";
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
+  const [personaId, setPersonaId] = useState<string>(DEFAULT_PERSONA_ID);
+  const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
+
+  // Transport recriado a cada render (mesmo padrão de antes) — isso é o que
+  // garante que `personaId` viaja sempre atualizado no corpo da requisição:
+  // `body` é lido no momento da chamada, então o valor mais recente do
+  // estado React já está aqui quando o usuário manda a próxima mensagem.
   const { messages, sendMessage, status, error, regenerate } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      body: { personaId },
+    }),
   });
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -64,6 +77,22 @@ export default function ChatPage() {
             {isLoading ? "digitando…" : "online agora"}
           </span>
         </div>
+
+        {/* Seletor de persona — troca só o tom das respostas (ver
+            lib/personas.ts); nome/avatar do bot continuam os mesmos. */}
+        <select
+          value={personaId}
+          onChange={(e) => setPersonaId(e.target.value)}
+          disabled={isLoading}
+          aria-label="Persona do bot"
+          className="ml-auto flex-none border border-divider bg-input-bg px-2.5 py-1.5 text-xs font-semibold text-text outline-none focus:border-accent disabled:opacity-50"
+        >
+          {PERSONAS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
       </header>
 
       {/* Corpo */}
@@ -75,7 +104,7 @@ export default function ChatPage() {
             </div>
             <h2 className="m-0 text-2xl font-extrabold">{BOT_NAME}</h2>
             <p className="m-0 max-w-md text-sm leading-relaxed text-muted">
-              {TAGLINE}
+              {persona.tagline}
             </p>
             <div className="mt-2 grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
               {SUGGESTED_CHIPS.map((label, i) => (
@@ -113,11 +142,35 @@ export default function ChatPage() {
                         : "border-l-2 border-accent bg-surface"
                     }`}
                   >
-                    {message.parts.map((part, i) =>
-                      part.type === "text" ? (
-                        <span key={i}>{part.text}</span>
-                      ) : null,
-                    )}
+                    {message.parts.map((part, i) => {
+                      if (part.type === "text") {
+                        return <span key={i}>{part.text}</span>;
+                      }
+                      if (isToolUIPart(part)) {
+                        const toolName = getToolName(part);
+                        const title =
+                          SKILLS_CATALOG.find((s) => s.id === toolName)?.title ??
+                          toolName;
+                        return (
+                          <div
+                            key={i}
+                            className="my-1 border border-dashed border-divider bg-surface-2 px-2.5 py-1.5 text-xs first:mt-0"
+                          >
+                            <span className="font-semibold uppercase tracking-wider text-accent-text">
+                              {title}
+                            </span>
+                            <span className="ml-1.5 text-muted">
+                              {part.state === "output-available"
+                                ? renderToolSummary(toolName, part.output)
+                                : part.state === "output-error"
+                                  ? part.errorText
+                                  : "usando…"}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                   </div>
                 </div>
               );
