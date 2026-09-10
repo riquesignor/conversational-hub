@@ -1,32 +1,14 @@
-import type { ConversationStore, StoredMessage } from "./types";
-
-/**
- * Implementação padrão: histórico em memória, por instância de processo.
- *
- * Mesma limitação de `lib/rate-limit.ts` — não é compartilhado entre
- * instâncias serverless, e some no cold start/redeploy. É suficiente pra um
- * portfólio (não é dado crítico) e não exige nenhuma credencial pra rodar.
- * Serve de fallback também: se `DB_PROVIDER` apontar pra um backend ainda
- * não configurado, dá pra cair aqui em vez de derrubar a request.
- */
-class MemoryConversationStore implements ConversationStore {
-  private sessions = new Map<string, StoredMessage[]>();
-
-  async appendMessage(sessionId: string, message: StoredMessage): Promise<void> {
-    const history = this.sessions.get(sessionId) ?? [];
-    history.push(message);
-    this.sessions.set(sessionId, history);
-  }
-
-  async getMessages(sessionId: string): Promise<StoredMessage[]> {
-    return this.sessions.get(sessionId) ?? [];
-  }
-
-  async clearSession(sessionId: string): Promise<void> {
-    this.sessions.delete(sessionId);
-  }
-}
-
-// Singleton em nível de módulo — sobrevive entre requests na mesma instância
-// (mas não entre instâncias/cold starts, como no comentário acima).
-export const memoryStore: ConversationStore = new MemoryConversationStore();
+// Este arquivo não é mais usado. lib/db/index.ts não importa mais
+// MemoryConversationStore — Firestore virou o único backend de persistência
+// desde que login passou a ser obrigatório (ver middleware.ts): o login já
+// exige Firebase Admin configurado, então não fazia mais sentido manter um
+// branch "funciona sem configurar nada" que ninguém alcança de qualquer
+// forma. Ver README, seção "Autenticação e Firestore".
+//
+// Pode apagar este arquivo com segurança:
+//
+//   rm lib/db/memory-store.ts
+//
+// (Não apaguei automaticamente porque o bridge deste projeto, nesta sessão,
+// só consegue escrever/sobrescrever arquivo no seu pendrive, não apagar.)
+export {};

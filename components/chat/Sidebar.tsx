@@ -1,6 +1,6 @@
 "use client";
 
-import { PlusIcon, ThreadIcon, GearIcon } from "./icons";
+import { PlusIcon, ThreadIcon, GearIcon, LogoutIcon } from "./icons";
 
 export interface ThreadSummary {
   id: string;
@@ -15,6 +15,11 @@ interface SidebarProps {
   onSelectThread: (id: string) => void;
   onNewThread: () => void;
   onOpenSettings: () => void;
+  onLogout: () => void;
+  /** Nome de exibição ou e-mail do usuário logado (sempre existe — login é
+   * obrigatório pra chegar até aqui, ver middleware.ts). */
+  userLabel: string;
+  userPhotoURL?: string | null;
   disabled: boolean;
 }
 
@@ -25,6 +30,9 @@ export function Sidebar({
   onSelectThread,
   onNewThread,
   onOpenSettings,
+  onLogout,
+  userLabel,
+  userPhotoURL,
   disabled,
 }: SidebarProps) {
   return (
@@ -55,7 +63,8 @@ export function Sidebar({
             <button
               key={t.id}
               onClick={() => onSelectThread(t.id)}
-              className={`flex items-start gap-2 border-l-2 px-2 py-2 text-left ${
+              disabled={disabled}
+              className={`flex items-start gap-2 border-l-2 px-2 py-2 text-left disabled:opacity-50 ${
                 active ? "border-accent bg-accent-tint" : "border-transparent hover:bg-surface-2"
               }`}
             >
@@ -78,6 +87,23 @@ export function Sidebar({
         <GearIcon />
         Configurações
       </button>
+
+      <div className="flex items-center gap-2 border-t-2 border-divider px-1 pt-3">
+        {userPhotoURL ? (
+          // eslint-disable-next-line @next/next/no-img-element -- avatar de
+          // URL externa (Google); next/image exigiria configurar
+          // remotePatterns pra um domínio que varia por provedor de login.
+          <img src={userPhotoURL} alt="" className="h-6 w-6 flex-none border border-divider object-cover" />
+        ) : (
+          <div className="flex h-6 w-6 flex-none items-center justify-center bg-surface-2 text-[11px] font-bold text-muted">
+            {userLabel.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-text">{userLabel}</span>
+        <button onClick={onLogout} title="Sair" className="flex-none text-muted hover:text-accent-text">
+          <LogoutIcon />
+        </button>
+      </div>
     </aside>
   );
 }

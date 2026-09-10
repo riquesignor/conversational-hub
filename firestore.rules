@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// Regras do Firestore — segunda camada de defesa, não a primeira: hoje todo
+// acesso deste projeto passa pelo Admin SDK no servidor (lib/firebase/admin.ts),
+// que ignora estas regras por padrão (Admin SDK tem acesso irrestrito). Elas
+// existem pra já deixar o banco seguro no dia em que alguma tela ler o
+// Firestore direto do navegador com o SDK client (lib/firebase/client.ts) —
+// sem isso, esse dia chegaria com o banco todo público por omissão.
+//
+// Deploy: `firebase deploy --only firestore:rules` (Firebase CLI) ou colar
+// direto em Firestore Database → Regras no Console.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      match /threads/{threadId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null && request.auth.uid == uid;
+        }
+      }
+
+      match /images/{imageId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      match /pdfs/{pdfId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // Qualquer caminho fora de users/{uid}/... fica fechado por padrão —
+    // sem regra "match /{document=**}" de fallback liberando geral.
+  }
+}

@@ -3,8 +3,17 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DEFAULT_PERSONA_ID, PERSONAS } from "@/lib/personas";
+import { truncate } from "@/lib/format";
+import { useAuth } from "@/lib/auth/use-auth";
+import { logout } from "@/lib/auth/client-actions";
+// Só os TIPOS — importar de lib/db/types.ts (não de lib/db, que reexporta
+// FirebaseConversationStore) garante que nada server-only (firebase-admin)
+// arrisca entrar no bundle do cliente. `import type` já é apagado no
+// compile de qualquer forma, isto é só reforço.
+import type { ThreadMeta, StoredMessage } from "@/lib/db/types";
 import { Sidebar, type ThreadSummary } from "@/components/chat/Sidebar";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { EmptyState } from "@/components/chat/EmptyState";
@@ -21,11 +30,6 @@ const SUGGESTED_CHIPS = [
   "Só bora trocar uma ideia",
 ];
 
-function truncate(text: string, max: number): string {
-  const clean = text.trim().replace(/\s+/g, " ");
-  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
-}
-
 function firstAndLastText(messages: UIMessage[]): { first?: string; last?: string } {
   let first: string | undefined;
   let last: string | undefined;
@@ -40,22 +44,41 @@ function firstAndLastText(messages: UIMessage[]): { first?: string; last?: strin
   return { first, last };
 }
 
+function threadMetaToSummary(meta: ThreadMeta): ThreadSummary {
+  return { id: meta.id, title: meta.title, snippet: meta.lastMessagePreview ?? "" };
+}
+
+function storedToUIMessages(stored: StoredMessage[]): UIMessage[] {
+  return stored.map((m) => ({
+    id: m.id,
+    role: m.role,
+    parts: [{ type: "text", text: m.text }],
+  }));
+}
+
 export default function ChatPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
   // useId() é estável entre a renderização no servidor e a hidratação no
   // cliente (ao contrário de crypto.randomUUID(), que geraria um valor
-  // diferente em cada lado e um mismatch de hidratação) — por isso é só a
-  // PRIMEIRA thread que usa isso; toda thread nova criada depois (dentro de
-  // handleNewThread, só chamado a partir de um clique) usa
-  // crypto.randomUUID() sem problema, porque aí já é 100% client-side.
+  // diferente em cada lado e um mismatch de hidratação) — usado só como
+  // ponto de partida pra usuário novo, sem thread nenhuma salva ainda (ver
+  // efeito de carregamento abaixo, que troca isto pela lista real assim
+  // que /api/threads responde). Toda thread criada depois de montado (novo
+  // clique em "Nova conversa") usa crypto.randomUUID(), sem risco, porque
+  // aí já é 100% client-side.
   const initialThreadId = useId();
   const [activeThreadId, setActiveThreadId] = useState(initialThreadId);
   const [threads, setThreads] = useState<ThreadSummary[]>([
     { id: initialThreadId, title: "Nova conversa", snippet: "" },
   ]);
-  // Cache de mensagens por thread — sobrevive à troca de conversa na
-  // sidebar, que troca o `id` do useChat e por isso descarta e recria o
-  // Chat interno da AI SDK (ver comentário abaixo). Não sobrevive a um
-  // reload da página (mesma limitação de sempre — ver README).
+  const [threadsLoaded, setThreadsLoaded] = useState(false);
+  const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
+
+  // Cache de mensagens por thread — troca de conversa na sidebar troca o
+  // `id` do useChat, que descarta e recria o Chat interno da AI SDK (ver
+  // comentário abaixo) já inicializado com o que estiver aqui.
   const threadMessagesRef = useRef<Record<string, UIMessage[]>>({});
 
   const [input, setInput] = useState("");
@@ -64,14 +87,64 @@ export default function ChatPage() {
 
   const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
 
+  // Defesa em profundidade: middleware.ts já redireciona quem navega pra
+  // "/" sem cookie de sessão, mas isto cobre quem já está com a aba aberta
+  // no momento em que a sessão expira/é revogada (o SDK client detecta e
+  // dispara onAuthStateChanged com user=null sem precisar de reload).
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [authLoading, user, router]);
+
+  // Carrega as conversas salvas do Firestore assim que o usuário é
+  // conhecido — sem isto, a sidebar reiniciava vazia a cada reload mesmo
+  // com tudo persistido no backend (ver README, "Conversas (threads)").
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/threads");
+        if (!res.ok) return;
+        const data: { threads: ThreadMeta[] } = await res.json();
+        if (cancelled || data.threads.length === 0) return;
+
+        setThreads(data.threads.map(threadMetaToSummary));
+        const mostRecent = data.threads[0]!;
+        setLoadingThreadId(mostRecent.id);
+        const msgRes = await fetch(`/api/threads/${mostRecent.id}/messages`);
+        if (!cancelled && msgRes.ok) {
+          const msgData: { messages: StoredMessage[] } = await msgRes.json();
+          threadMessagesRef.current[mostRecent.id] = storedToUIMessages(msgData.messages);
+        }
+        if (!cancelled) {
+          setActiveThreadId(mostRecent.id);
+          setLoadingThreadId(null);
+        }
+      } catch (err) {
+        console.error("[page] falha ao carregar conversas salvas:", err);
+      } finally {
+        if (!cancelled) setThreadsLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   // A AI SDK recria o Chat interno sempre que `id` muda (mesmo mecanismo já
   // usado pro `body` refletir sempre o personaId mais recente — ver
   // README, seção Personas): trocar de thread na sidebar troca esse `id`,
   // o hook descarta o Chat anterior e monta um novo já inicializado com
-  // `messages` (o cache local dessa thread, ou [] se for uma conversa
-  // nova). O `id` também viaja automaticamente no corpo de cada requisição
-  // — é o que app/api/chat/route.ts lê como `threadId` pra saber em qual
-  // conversa persistir cada mensagem.
+  // `messages` (o cache local dessa thread — populado ao carregar do
+  // servidor ou ao trocar de conversa, ver handleSelectThread). O `id`
+  // também viaja automaticamente no corpo de cada requisição — é o que
+  // app/api/chat/route.ts lê pra saber em qual conversa persistir cada
+  // mensagem (sempre sob o uid da sessão, nunca um valor solto do cliente).
   const { messages, sendMessage, status, error, regenerate } = useChat({
     id: activeThreadId,
     messages: threadMessagesRef.current[activeThreadId] ?? [],
@@ -86,8 +159,7 @@ export default function ChatPage() {
 
   // Espelha as mensagens da thread ativa no cache a cada mudança (inclusive
   // durante o streaming, token a token) e atualiza título/preview da
-  // conversa na sidebar a partir do conteúdo real — nunca dado inventado,
-  // ao contrário do mock original (que tinha 5 conversas fixas fake).
+  // conversa na sidebar a partir do conteúdo real.
   useEffect(() => {
     threadMessagesRef.current[activeThreadId] = messages;
     const { first, last } = firstAndLastText(messages);
@@ -124,10 +196,44 @@ export default function ChatPage() {
     setSettingsOpen(false);
   }
 
-  function handleSelectThread(id: string) {
-    if (id === activeThreadId || isLoading) return;
-    setActiveThreadId(id);
-    setSettingsOpen(false);
+  const handleSelectThread = useCallback(
+    async (id: string) => {
+      if (id === activeThreadId || isLoading || loadingThreadId) return;
+      setSettingsOpen(false);
+
+      // Já em cache (thread mais recente carregada no mount, ou já visitada
+      // nesta sessão) — troca imediata, sem round-trip.
+      if (threadMessagesRef.current[id] !== undefined) {
+        setActiveThreadId(id);
+        return;
+      }
+
+      setLoadingThreadId(id);
+      try {
+        const res = await fetch(`/api/threads/${id}/messages`);
+        if (res.ok) {
+          const data: { messages: StoredMessage[] } = await res.json();
+          threadMessagesRef.current[id] = storedToUIMessages(data.messages);
+        }
+      } catch (err) {
+        console.error("[page] falha ao carregar mensagens da conversa:", err);
+      } finally {
+        setActiveThreadId(id);
+        setLoadingThreadId(null);
+      }
+    },
+    [activeThreadId, isLoading, loadingThreadId],
+  );
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/login");
+  }
+
+  // Evita piscar a tela de chat vazia antes do redirect pro /login (efeito
+  // acima) resolver, e antes do primeiro carregamento de /api/threads.
+  if (authLoading || !user) {
+    return <main className="flex h-dvh items-center justify-center bg-bg text-sm text-muted">Carregando…</main>;
   }
 
   return (
@@ -139,7 +245,10 @@ export default function ChatPage() {
         onSelectThread={handleSelectThread}
         onNewThread={handleNewThread}
         onOpenSettings={() => setSettingsOpen(true)}
-        disabled={isLoading}
+        onLogout={handleLogout}
+        userLabel={user.displayName || user.email || "Minha conta"}
+        userPhotoURL={user.photoURL}
+        disabled={isLoading || !!loadingThreadId}
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -149,7 +258,11 @@ export default function ChatPage() {
           <>
             <ChatHeader botName={BOT_NAME} isLoading={isLoading} />
             <div className="flex flex-1 flex-col overflow-y-auto">
-              {isEmpty ? (
+              {!threadsLoaded ? (
+                <div className="flex flex-1 items-center justify-center text-sm text-muted">
+                  Carregando conversas…
+                </div>
+              ) : isEmpty ? (
                 <EmptyState
                   botName={BOT_NAME}
                   tagline={persona.tagline}

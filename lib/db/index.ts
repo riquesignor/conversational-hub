@@ -1,38 +1,31 @@
 import type { ConversationStore } from "./types";
-import { memoryStore } from "./memory-store";
+import { FirebaseConversationStore } from "./firebase-store";
 
-export type { ConversationStore, StoredMessage } from "./types";
+export type {
+  ConversationStore,
+  StoredMessage,
+  ThreadMeta,
+  StoredImage,
+  StoredPdf,
+} from "./types";
 
-let cached: Promise<ConversationStore> | null = null;
+let cached: ConversationStore | null = null;
 
 /**
- * Mesmo padrão de `getModel()` em lib/llm/provider.ts: um switch central
- * baseado em env var, isolando qual backend está ativo. Troque
- * `DB_PROVIDER=firebase` (e implemente lib/db/firebase-store.ts) quando o
- * projeto Firebase estiver pronto — nada fora deste arquivo precisa mudar.
+ * Único backend de persistência do projeto: Firestore, via Admin SDK (ver
+ * lib/firebase/admin.ts). Não existe mais um provider "memory" plugável —
+ * desde que o login passou a ser obrigatório (ver middleware.ts e
+ * lib/auth/session.ts), toda conversa já está amarrada a um uid real
+ * emitido pelo Firebase Auth, e o próprio login já exige as credenciais do
+ * Admin SDK configuradas. Não fazia mais sentido manter um branch de
+ * persistência "funciona sem configurar nada": sem Firebase configurado,
+ * ninguém consegue nem logar, então a rota de chat nunca seria alcançada.
  *
- * É async (e o import do backend "firebase" é dinâmico) de propósito: assim
- * o projeto continua buildando sem `firebase-admin` instalado enquanto
- * ninguém escolher esse provider — só toca nesse módulo se for usado.
+ * Segue síncrono (sem Promise) porque não há mais import dinâmico condicional
+ * — `firebase-admin` agora é uma dependência obrigatória do projeto, não
+ * opcional como antes.
  */
-async function createStore(): Promise<ConversationStore> {
-  // "||" e não "??" de propósito — mesmo motivo do provider.ts: uma env var
-  // criada em branco no painel da Vercel chega como "", não como undefined.
-  const provider = process.env.DB_PROVIDER || "memory";
-
-  switch (provider) {
-    case "memory":
-      return memoryStore;
-    case "firebase": {
-      const { FirebaseConversationStore } = await import("./firebase-store");
-      return new FirebaseConversationStore();
-    }
-    default:
-      throw new Error(`DB_PROVIDER="${provider}" não implementado em lib/db/index.ts`);
-  }
-}
-
-export function getStore(): Promise<ConversationStore> {
-  if (!cached) cached = createStore();
+export function getStore(): ConversationStore {
+  if (!cached) cached = new FirebaseConversationStore();
   return cached;
 }

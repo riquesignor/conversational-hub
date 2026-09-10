@@ -5,6 +5,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getTools } from "@/lib/skills";
 import { getStore } from "@/lib/db";
 import { getPersona } from "@/lib/personas";
+import { getSessionUser } from "@/lib/auth/session";
+import { truncate } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -43,6 +45,15 @@ function lastUserText(messages: UIMessage[]): string {
 }
 
 export async function POST(req: Request) {
+  // Login é obrigatório pra usar o chat (ver middleware.ts) — mas o
+  // middleware só checa se o cookie EXISTE, não se ele é válido (Edge
+  // runtime não roda o Admin SDK). A verificação de verdade é aqui: sem uid
+  // confirmado pelo Admin SDK, a rota nem chega a chamar o modelo.
+  const user = await getSessionUser();
+  if (!user) {
+    return Response.json({ error: "Não autenticado. Faça login pra conversar." }, { status: 401 });
+  }
+
   const ip = getClientIp(req);
   const { allowed } = checkRateLimit(ip);
 
@@ -54,37 +65,41 @@ export async function POST(req: Request) {
   }
 
   // `id` vem automaticamente no corpo da requisição — é o `id` do `useChat`
-  // no cliente (app/page.tsx), que agora é o id da CONVERSA (thread) ativa
-  // na sidebar, não mais um cookie de sessão anônima. Cada thread grava seu
-  // próprio histórico em lib/db, então trocar de conversa na sidebar troca
-  // de "sessionId" de fato — sem precisar de cookie nenhum.
+  // no cliente (app/page.tsx), o id da CONVERSA (thread) ativa na sidebar.
+  // Quem decide DE QUEM é essa thread é sempre `user.uid` (do cookie
+  // verificado acima), nunca um campo vindo do corpo — o client não tem
+  // como escrever na área de outro uid nem manipulando a requisição.
   const {
     messages,
     personaId,
     id: threadId,
   }: { messages: UIMessage[]; personaId?: string; id?: string } = await req.json();
 
-  // threadId sempre deve vir preenchido (a AI SDK inclui automaticamente o
-  // `id` do chat no corpo — ver README, seção "Conversas (threads)"), mas
-  // um fallback aqui evita derrubar a rota se algum dia chegar ausente.
   const effectiveThreadId = threadId || randomUUID();
+  const store = getStore();
 
   // Persistência é best-effort: nunca deve derrubar a resposta do chat.
-  // Hoje isso vai pro MemoryConversationStore (lib/db/memory-store.ts) — a
-  // base já está pronta pra virar Firestore trocando só DB_PROVIDER (ver
-  // lib/db/index.ts e lib/db/firebase-store.ts).
   const userText = lastUserText(messages);
   if (userText) {
-    getStore()
-      .then((store) =>
-        store.appendMessage(effectiveThreadId, {
-          id: randomUUID(),
-          role: "user",
-          text: userText,
-          createdAt: Date.now(),
-        }),
-      )
+    store
+      .appendMessage(user.uid, effectiveThreadId, {
+        id: randomUUID(),
+        role: "user",
+        text: userText,
+        createdAt: Date.now(),
+      })
       .catch((err) => console.error("[api/chat] falha ao salvar mensagem do usuário:", err));
+
+    // title só "pega" na criação da thread (primeira mensagem) — ver o
+    // contrato do método em lib/db/types.ts. Em turnos seguintes isto só
+    // atualiza personaId/lastMessagePreview/updatedAt.
+    store
+      .touchThread(user.uid, effectiveThreadId, {
+        title: truncate(userText, 40),
+        personaId,
+        lastMessagePreview: truncate(userText, 48),
+      })
+      .catch((err) => console.error("[api/chat] falha ao atualizar metadados da thread:", err));
   }
 
   const result = streamText({
@@ -99,16 +114,18 @@ export async function POST(req: Request) {
     stopWhen: stepCountIs(5),
     onFinish: ({ text }) => {
       if (!text) return;
-      getStore()
-        .then((store) =>
-          store.appendMessage(effectiveThreadId, {
-            id: randomUUID(),
-            role: "assistant",
-            text,
-            createdAt: Date.now(),
-          }),
-        )
+      store
+        .appendMessage(user.uid, effectiveThreadId, {
+          id: randomUUID(),
+          role: "assistant",
+          text,
+          createdAt: Date.now(),
+        })
         .catch((err) => console.error("[api/chat] falha ao salvar resposta do bot:", err));
+
+      store
+        .touchThread(user.uid, effectiveThreadId, { lastMessagePreview: truncate(text, 48) })
+        .catch((err) => console.error("[api/chat] falha ao atualizar prévia da thread:", err));
     },
     // Sem isso, um erro do provider (chave inválida, quota, modelo errado
     // etc.) vira só "An error occurred" pro cliente e some sem deixar
