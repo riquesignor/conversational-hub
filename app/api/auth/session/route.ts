@@ -15,6 +15,12 @@ const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
  * guardar o ID token em localStorage/JS: o cookie não é legível por script
  * nenhum no navegador, o que fecha a superfície de roubo de sessão via XSS
  * que um token em localStorage teria.
+ *
+ * DIAGNÓSTICO TEMPORÁRIO (remover depois de resolver o 500 em produção):
+ * as respostas de erro abaixo incluem um campo "detail" com a mensagem
+ * crua do Admin SDK, só pra debug via aba Network do navegador. Normalmente
+ * isso não deveria vazar pro cliente — depois que o login estiver
+ * funcionando, tirar o campo "detail" das duas respostas de erro abaixo.
  */
 export async function POST(req: Request) {
   const body: { idToken?: string } = await req.json().catch(() => ({}));
@@ -29,7 +35,12 @@ export async function POST(req: Request) {
     decoded = await adminAuth().verifyIdToken(idToken);
   } catch (err) {
     console.error("[api/auth/session] idToken inválido:", err);
-    return Response.json({ error: "Token inválido ou expirado." }, { status: 401 });
+    // TEMPORÁRIO — ver comentário no topo do arquivo. Remover "detail" antes
+    // de fechar o diagnóstico.
+    return Response.json(
+      { error: "Token inválido ou expirado.", detail: err instanceof Error ? err.message : String(err) },
+      { status: 401 },
+    );
   }
 
   let sessionCookie: string;
@@ -39,7 +50,12 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[api/auth/session] falha ao criar session cookie:", err);
-    return Response.json({ error: "Falha ao criar sessão." }, { status: 500 });
+    // TEMPORÁRIO — ver comentário no topo do arquivo. Remover "detail" antes
+    // de fechar o diagnóstico.
+    return Response.json(
+      { error: "Falha ao criar sessão.", detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
   }
 
   // Upsert de users/{uid} — é aqui, e só aqui, que este documento raiz é
