@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 
 interface AuthState {
   user: User | null;
@@ -19,7 +19,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, loading: true });
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (user) => setState({ user, loading: false }));
+    // getFirebaseAuth() só é chamado aqui dentro (useEffect roda só no
+    // cliente, nunca durante SSR/prerender estático do build) — ver o
+    // comentário em lib/firebase/client.ts sobre por que isso importa.
+    return onAuthStateChanged(getFirebaseAuth(), (user) => setState({ user, loading: false }));
   }, []);
 
   return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;

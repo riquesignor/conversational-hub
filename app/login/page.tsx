@@ -9,7 +9,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase/client";
+import { getFirebaseAuth, googleProvider } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/auth/use-auth";
 import { establishSession } from "@/lib/auth/client-actions";
 import { translateAuthError } from "@/lib/auth/errors";
@@ -45,7 +45,7 @@ export default function LoginPage() {
     setInfo(null);
     setSubmitting(true);
     try {
-      const { user: signedInUser } = await signInWithPopup(auth, googleProvider);
+      const { user: signedInUser } = await signInWithPopup(getFirebaseAuth(), googleProvider);
       await establishSession(signedInUser);
       router.replace("/");
       router.refresh();
@@ -69,14 +69,14 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       if (mode === "signup") {
-        const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password);
+        const { user: newUser } = await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
         // Não bloqueia o cadastro esperando confirmação — só dispara o
         // e-mail de verificação em paralelo. Enforçar verificação antes de
         // liberar acesso fica como próximo passo (ver README).
         sendEmailVerification(newUser).catch(() => {});
         await establishSession(newUser);
       } else {
-        const { user: signedInUser } = await signInWithEmailAndPassword(auth, email, password);
+        const { user: signedInUser } = await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
         await establishSession(signedInUser);
       }
       router.replace("/");
@@ -96,7 +96,7 @@ export default function LoginPage() {
       return;
     }
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(getFirebaseAuth(), email);
       setInfo("Enviamos um link de redefinição de senha pro seu e-mail.");
     } catch (err) {
       setError(translateAuthError(err));

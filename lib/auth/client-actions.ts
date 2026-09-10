@@ -1,5 +1,5 @@
 import { signOut, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 
 /**
  * Troca o usuário recém-autenticado no SDK client (Google popup ou
@@ -24,7 +24,7 @@ export async function establishSession(user: User): Promise<void> {
 /** Inverso de establishSession: limpa os dois lados (SDK client + cookie).
  * Usado pelo botão "Sair" na sidebar (ver components/chat/Sidebar.tsx). */
 export async function logout(): Promise<void> {
-  await signOut(auth);
+  await signOut(getFirebaseAuth());
   await fetch("/api/auth/logout", { method: "POST" }).catch(() => {
     // Best-effort: mesmo se a chamada falhar (rede, servidor fora), o SDK
     // client já saiu — o pior caso é o cookie sobreviver até expirar

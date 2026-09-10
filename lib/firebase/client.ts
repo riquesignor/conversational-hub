@@ -27,5 +27,23 @@ function getFirebaseApp(): FirebaseApp {
   return getApps().length ? getApp() : initializeApp(firebaseConfig);
 }
 
-export const auth: Auth = getAuth(getFirebaseApp());
+// getAuth() valida o apiKey NA HORA e lança (ex.: "auth/invalid-api-key") se
+// ele estiver ausente ou inválido — por isso não pode rodar na avaliação do
+// módulo (import), nem no corpo de render de um componente. Os dois casos
+// executam durante `next build`: Client Components também são renderizados
+// no servidor pra gerar o HTML inicial, e páginas sem dado dinâmico (como
+// /login, ou a /_not-found automática do Next) são pré-renderizadas
+// estaticamente no build — antes de qualquer env var do Firebase existir de
+// verdade em produção, se ainda não tiver sido configurada na Vercel. Uma
+// instância só é criada na PRIMEIRA chamada de getFirebaseAuth(), sempre
+// disparada de dentro de um useEffect ou de um handler de evento (nunca do
+// corpo de render) — ver lib/auth/use-auth.tsx e app/login/page.tsx. Mesmo
+// espírito de lib/firebase/admin.ts: falha só quando usado, nunca só por
+// existir no código.
+let authInstance: Auth | null = null;
+export function getFirebaseAuth(): Auth {
+  if (!authInstance) authInstance = getAuth(getFirebaseApp());
+  return authInstance;
+}
+
 export const googleProvider = new GoogleAuthProvider();
