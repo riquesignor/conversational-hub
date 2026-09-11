@@ -105,9 +105,9 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-bg px-4 text-text">
-      <div className="w-full max-w-sm border border-divider bg-surface p-6 sm:p-8">
+      <div className="w-full max-w-sm rounded-lg border border-divider bg-surface p-6 sm:p-8">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="flex h-11 w-11 items-center justify-center bg-accent-strong text-lg font-extrabold text-on-accent">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-strong text-lg font-extrabold text-on-accent">
             {BOT_NAME.charAt(0).toUpperCase()}
           </div>
           <h1 className="text-lg font-extrabold">
@@ -124,7 +124,7 @@ export default function LoginPage() {
           type="button"
           onClick={handleGoogleClick}
           disabled={submitting}
-          className="flex w-full items-center justify-center gap-2.5 border border-divider bg-bg px-4 py-2.5 text-[13px] font-semibold text-text disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2.5 rounded-md border border-divider bg-bg px-4 py-2.5 text-[13px] font-semibold text-text disabled:opacity-50"
         >
           <GoogleIcon />
           Continuar com Google
@@ -145,7 +145,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={submitting}
-              className="border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
+              className="rounded-md border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
             />
           </label>
 
@@ -158,7 +158,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={submitting}
-              className="border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
+              className="rounded-md border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
             />
           </label>
 
@@ -172,7 +172,7 @@ export default function LoginPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 disabled={submitting}
-                className="border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
+                className="rounded-md border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
               />
             </label>
           )}
@@ -193,7 +193,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="mt-1 bg-accent-strong px-4 py-2.5 text-sm font-extrabold text-on-accent disabled:opacity-50"
+            className="mt-1 rounded-md bg-accent-strong px-4 py-2.5 text-sm font-extrabold text-on-accent disabled:opacity-50"
           >
             {mode === "signin" ? "Entrar" : "Criar conta"}
           </button>

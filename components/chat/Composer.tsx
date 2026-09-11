@@ -45,7 +45,7 @@ export function Composer({
           verdade ainda (mesma fidelidade do mock original, cujo próprio
           protótipo também só fecha o menu ao clicar numa opção). */}
       {attachOpen && (
-        <div className="absolute bottom-full left-4 z-10 mb-2 flex animate-pop-in flex-col border border-divider bg-bg shadow-[var(--shadow-dropdown)] sm:left-6">
+        <div className="absolute bottom-full left-4 z-10 mb-2 flex animate-pop-in flex-col overflow-hidden rounded-lg border border-divider bg-bg shadow-[var(--shadow-dropdown)] sm:left-6">
           {ATTACH_OPTIONS.map(({ label, icon: Icon }) => (
             <button
               key={label}
@@ -67,7 +67,7 @@ export function Composer({
             setPersonaOpen(false);
           }}
           title="Anexar"
-          className="flex h-[38px] w-[38px] flex-none items-center justify-center border border-divider text-text"
+          className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-md border border-divider text-text"
         >
           <PlusIcon size={18} />
         </button>
@@ -76,12 +76,12 @@ export function Composer({
           onChange={(e) => onInputChange(e.target.value)}
           placeholder={`Escreve pra ${botName}...`}
           disabled={isLoading}
-          className="min-w-0 flex-1 border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
+          className="min-w-0 flex-1 rounded-md border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="flex flex-none items-center gap-1.5 bg-accent-strong px-4 py-2.5 text-sm font-extrabold text-on-accent transition-[transform,background-color] active:scale-95 active:bg-accent disabled:opacity-40"
+          className="flex flex-none items-center gap-1.5 rounded-md bg-accent-strong px-4 py-2.5 text-sm font-extrabold text-on-accent transition-[transform,background-color] active:scale-95 active:bg-accent disabled:opacity-40"
         >
           <SendIcon />
           Enviar
@@ -94,15 +94,15 @@ export function Composer({
             setPersonaOpen((o) => !o);
             setAttachOpen(false);
           }}
-          className="flex items-center gap-1.5 border border-divider px-2.5 py-1.5 text-xs font-semibold text-muted"
+          className="flex items-center gap-1.5 rounded-md border border-divider px-2.5 py-1.5 text-xs font-semibold text-muted"
         >
-          <span className="h-1.5 w-1.5 flex-none bg-accent" />
+          <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />
           {persona.label}
           <ChevronDownIcon />
         </button>
 
         {personaOpen && (
-          <div className="absolute bottom-full left-0 z-10 mb-2 flex w-72 animate-pop-in flex-col border border-divider bg-bg shadow-[var(--shadow-dropdown)]">
+          <div className="absolute bottom-full left-0 z-10 mb-2 flex w-72 animate-pop-in flex-col overflow-hidden rounded-lg border border-divider bg-bg shadow-[var(--shadow-dropdown)]">
             {PERSONAS.map((p) => (
               <button
                 key={p.id}

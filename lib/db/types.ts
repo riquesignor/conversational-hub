@@ -36,6 +36,24 @@ export interface StoredPdf {
   createdAt: number;
 }
 
+/** Uma página de resultados paginados — `nextCursor` é opaco (não assumir
+ * nada sobre o formato) e `null` quando não há mais páginas. Passar de volta
+ * como `opts.cursor` na chamada seguinte pra pegar a próxima página. */
+export interface Page<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+export interface PageOptions {
+  /** Default e teto definidos por cada implementação (ver
+   * lib/db/firebase-store.ts) — nunca sem limite, de propósito: uma leitura
+   * sem `.limit()` no Firestore cresce sem teto conforme o uso do usuário
+   * cresce (mais lento E mais caro, já que o Firestore cobra por leitura de
+   * documento). */
+  limit?: number;
+  cursor?: string | null;
+}
+
 /**
  * Contrato de persistência. Todo método recebe `uid` — nunca um "sessionId"
  * genérico como antes: cada usuário autenticado (Firebase Auth) é a raiz de
@@ -45,11 +63,20 @@ export interface StoredPdf {
  */
 export interface ConversationStore {
   appendMessage(uid: string, threadId: string, message: StoredMessage): Promise<void>;
-  getMessages(uid: string, threadId: string): Promise<StoredMessage[]>;
+
+  /** Página de mensagens, da mais recente pra mais antiga internamente, mas
+   * devolvida em ORDEM CRONOLÓGICA (mais antiga primeiro) — pronta pra
+   * renderizar direto na tela sem o caller precisar inverter nada.
+   * `nextCursor` (quando não-null) busca a página seguinte de mensagens MAIS
+   * ANTIGAS que a atual (scroll-up "carregar mensagens anteriores"). */
+  getMessages(uid: string, threadId: string, opts?: PageOptions): Promise<Page<StoredMessage>>;
+
   clearThread(uid: string, threadId: string): Promise<void>;
 
-  /** Todas as conversas do usuário, mais recente primeiro — alimenta a sidebar. */
-  listThreads(uid: string): Promise<ThreadMeta[]>;
+  /** Conversas do usuário, mais recente primeiro (por `updatedAt`) — alimenta
+   * a sidebar. `nextCursor` busca a página seguinte de conversas mais
+   * antigas. */
+  listThreads(uid: string, opts?: PageOptions): Promise<Page<ThreadMeta>>;
 
   /**
    * Cria a thread se ainda não existir (usando `patch.title` como título

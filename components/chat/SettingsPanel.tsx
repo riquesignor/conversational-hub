@@ -39,7 +39,7 @@ export function SettingsPanel({ botName, persona, onBack }: SettingsPanelProps) 
       <div className="flex flex-none items-center gap-3 border-b-2 border-divider bg-surface px-4 py-3.5 sm:px-6">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 border border-divider px-2.5 py-1.5 text-[13px] font-semibold text-text hover:bg-surface-2"
+          className="flex items-center gap-1.5 rounded-md border border-divider px-2.5 py-1.5 text-[13px] font-semibold text-text hover:bg-surface-2"
         >
           <BackIcon />
           Voltar

@@ -2,11 +2,21 @@
 
 /*
  * Modernist — sistema de design do chatbot (importado do Claude Design).
- * Flat, arquitetural: raio zero em tudo, divisores fortes de 2px, um único
- * acento (vermelho-laranja) sobre base neutra. Tokens abaixo espelham
- * styles.css do design system; ajuste aqui pra manter tudo em um lugar só.
+ * Arquitetural, divisores fortes de 2px, um único acento (vermelho-laranja)
+ * sobre base neutra. Tokens abaixo espelham styles.css do design system;
+ * ajuste aqui pra manter tudo em um lugar só.
+ *
+ * Desvio deliberado do design system importado: o `readme.md`/`styles.css`
+ * originais fixam --radius-sm/md/lg em 0 ("Do not round a corner
+ * anywhere"). A pedido explícito, esse ponto foi substituído por uma escala
+ * de raio real abaixo — resto do sistema (cor, tipografia, divisores,
+ * layout) permanece igual ao token-a-token original.
  */
 :root {
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
   --bg: #f3f2f2;
   --surface: #eae9e9;
   --surface-2: #e2dfdf;
@@ -55,6 +65,10 @@
 }
 
 @theme inline {
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -149,9 +163,3 @@ body {
   font-family: var(--font-sans);
 }
 
-/* O sistema Modernist não arredonda nada — reforça isso mesmo sobre o
-   default de alguns elementos nativos (input, button) em navegadores. */
-input,
-button {
-  border-radius: 0;
-}

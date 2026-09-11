@@ -2,7 +2,14 @@
 
 import type { UIMessage } from "ai";
 import { isToolUIPart, getToolName } from "ai";
-import { SKILLS_CATALOG } from "@/lib/skills";
+// Import DIRETO de catalog.ts, não do barrel @/lib/skills: esse barrel
+// também importa (pra montar getTools()) cada tool de verdade — e cada uma
+// delas importa `zod` pro inputSchema. Como MessageBubble é client component,
+// importar do barrel puxava as 5 tools (e o zod inteiro, ~250KB no bundle
+// medido com `npm run analyze`) pro cliente só pra ler um array estático de
+// {id,title,description}. catalog.ts não depende de zod nem de nada
+// server-only — só o barrel misturava as duas coisas.
+import { SKILLS_CATALOG } from "@/lib/skills/catalog";
 import { renderToolSummary } from "@/lib/skills/render-tool-output";
 import { parseMessageContent } from "@/lib/parse-message-content";
 import { CodeBlock } from "./CodeBlock";
@@ -19,7 +26,10 @@ interface MessageBubbleProps {
   onRedo: () => void;
 }
 
-function messageText(message: UIMessage): string {
+/** Exportado pro MessageList usar como heurística de altura estimada por
+ * linha na virtualização (ver components/chat/MessageList.tsx) — evita
+ * duplicar a lógica de "extrair o texto plano de um UIMessage". */
+export function messageText(message: UIMessage): string {
   return message.parts
     .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
     .map((p) => p.text)
@@ -60,7 +70,7 @@ export function MessageBubble({ message, botName, showRedo, onEdit, onRedo }: Me
                 ) : seg.text.trim() ? (
                   <div
                     key={j}
-                    className={`whitespace-pre-wrap px-3 py-2.5 text-sm leading-relaxed ${
+                    className={`whitespace-pre-wrap rounded-lg px-3 py-2.5 text-sm leading-relaxed ${
                       isUser
                         ? "bg-user-bubble-bg text-user-bubble-text"
                         : "border-l-2 border-accent bg-surface text-text"
@@ -80,7 +90,7 @@ export function MessageBubble({ message, botName, showRedo, onEdit, onRedo }: Me
           return (
             <div
               key={i}
-              className="my-0.5 max-w-[82%] border border-dashed border-divider bg-surface-2 px-2.5 py-1.5 text-xs"
+              className="my-0.5 max-w-[82%] rounded-md border border-dashed border-divider bg-surface-2 px-2.5 py-1.5 text-xs"
             >
               <span className="font-semibold uppercase tracking-wider text-accent-text">
                 {title}

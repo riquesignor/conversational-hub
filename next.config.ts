@@ -14,6 +14,23 @@ const nextConfig: NextConfig = {
    * assim fora do bundle.
    */
   serverExternalPackages: ["firebase-admin"],
+
+  /**
+   * next/image só otimiza (redimensiona, converte pra WebP/AVIF, faz lazy
+   * loading) imagens de domínios explicitamente liberados aqui — é uma
+   * allowlist de propósito, pra não virar um proxy de imagem arbitrário.
+   * Hoje só a foto de perfil do Google (login com Google, ver
+   * components/chat/Sidebar.tsx) usa isso; login por e-mail/senha não tem
+   * foto (cai no fallback com a inicial do nome).
+   */
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.googleusercontent.com",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

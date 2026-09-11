@@ -14,7 +14,7 @@ let cached: ConversationStore | null = null;
 /**
  * Único backend de persistência do projeto: Firestore, via Admin SDK (ver
  * lib/firebase/admin.ts). Não existe mais um provider "memory" plugável —
- * desde que o login passou a ser obrigatório (ver middleware.ts e
+ * desde que o login passou a ser obrigatório (ver proxy.ts e
  * lib/auth/session.ts), toda conversa já está amarrada a um uid real
  * emitido pelo Firebase Auth, e o próprio login já exige as credenciais do
  * Admin SDK configuradas. Não fazia mais sentido manter um branch de

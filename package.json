@@ -10,12 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "analyze": "next experimental-analyze -o"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.64",
     "@ai-sdk/openai": "^4.0.60",
     "@ai-sdk/react": "^4.0.96",
+    "@tanstack/react-virtual": "^3.14.12",
     "ai": "^7.0.93",
     "firebase": "^12.19.0",
     "firebase-admin": "^14.3.0",

@@ -76,6 +76,21 @@ export default function ChatPage() {
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
 
+  // Cursor de paginação pra próxima página de conversas (ver
+  // app/api/threads/route.ts) — null explícito = não há mais páginas;
+  // string = há mais; chave ainda ausente = 1ª página nem chegou ainda.
+  const [threadsNextCursor, setThreadsNextCursor] = useState<string | null>(null);
+  const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
+
+  // Cursor de paginação da PRÓXIMA página de mensagens mais antigas, por
+  // thread (ver app/api/threads/[threadId]/messages/route.ts). Em state (não
+  // ref, ao contrário de threadMessagesRef abaixo) porque muda raramente —
+  // uma vez por fetch, não a cada token de streaming — então o custo de
+  // re-render é irrelevante e ler em render (pro botão "carregar anteriores")
+  // é permitido.
+  const [messagesCursors, setMessagesCursors] = useState<Record<string, string | null>>({});
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+
   // Cache de mensagens por thread — troca de conversa na sidebar troca o
   // `id` do useChat, que descarta e recria o Chat interno da AI SDK (ver
   // comentário abaixo) já inicializado com o que estiver aqui.
@@ -84,6 +99,15 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [personaId, setPersonaId] = useState(DEFAULT_PERSONA_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Div que efetivamente rola a lista de mensagens — repassada pro
+  // MessageList, que a usa tanto pra preservar a posição de leitura ao
+  // carregar mensagens mais antigas quanto como scroll element da
+  // virtualização (useVirtualizer). É STATE, não ref: ver o comentário
+  // detalhado na prop `scrollContainerEl` em MessageList.tsx sobre por que
+  // um RefObject aqui deixava a virtualização presa sem nenhum item
+  // renderizado sob Strict Mode em dev.
+  const [messagesScrollEl, setMessagesScrollEl] = useState<HTMLDivElement | null>(null);
 
   const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
 
@@ -108,16 +132,18 @@ export default function ChatPage() {
       try {
         const res = await fetch("/api/threads");
         if (!res.ok) return;
-        const data: { threads: ThreadMeta[] } = await res.json();
+        const data: { threads: ThreadMeta[]; nextCursor: string | null } = await res.json();
         if (cancelled || data.threads.length === 0) return;
 
         setThreads(data.threads.map(threadMetaToSummary));
+        setThreadsNextCursor(data.nextCursor);
         const mostRecent = data.threads[0]!;
         setLoadingThreadId(mostRecent.id);
         const msgRes = await fetch(`/api/threads/${mostRecent.id}/messages`);
         if (!cancelled && msgRes.ok) {
-          const msgData: { messages: StoredMessage[] } = await msgRes.json();
+          const msgData: { messages: StoredMessage[]; nextCursor: string | null } = await msgRes.json();
           threadMessagesRef.current[mostRecent.id] = storedToUIMessages(msgData.messages);
+          setMessagesCursors((prev) => ({ ...prev, [mostRecent.id]: msgData.nextCursor }));
         }
         if (!cancelled) {
           setActiveThreadId(mostRecent.id);
@@ -150,6 +176,14 @@ export default function ChatPage() {
       api: "/api/chat",
       body: { personaId },
     }),
+    // Sem throttle, cada token do streaming (SSE, chega vários por segundo)
+    // dispara um re-render de toda a árvore do chat — mensagens, sidebar
+    // (liveActiveSummary recalcula título/snippet a cada um) e o resto da
+    // página. 50ms agrupa vários tokens por re-render (still imperceptível
+    // pro usuário, streaming continua "instantâneo" a olho nu) sem perder
+    // frames — reduz trabalho de render em conversas longas ou em hardware
+    // mais fraco.
+    throttle: 50,
   });
 
   // Semeia o Chat recém-(re)criado pela AI SDK (toda vez que `activeThreadId`
@@ -236,8 +270,9 @@ export default function ChatPage() {
       try {
         const res = await fetch(`/api/threads/${id}/messages`);
         if (res.ok) {
-          const data: { messages: StoredMessage[] } = await res.json();
+          const data: { messages: StoredMessage[]; nextCursor: string | null } = await res.json();
           threadMessagesRef.current[id] = storedToUIMessages(data.messages);
+          setMessagesCursors((prev) => ({ ...prev, [id]: data.nextCursor }));
         }
       } catch (err) {
         console.error("[page] falha ao carregar mensagens da conversa:", err);
@@ -248,6 +283,52 @@ export default function ChatPage() {
     },
     [activeThreadId, isLoading, loadingThreadId],
   );
+
+  // Busca a próxima página de conversas mais antigas e anexa ao fim da
+  // sidebar. threadsNextCursor null == já não há mais (ver
+  // app/api/threads/route.ts) — o botão correspondente na sidebar já fica
+  // escondido nesse caso, isto aqui é só defesa em profundidade.
+  const handleLoadMoreThreads = useCallback(async () => {
+    if (!threadsNextCursor || loadingMoreThreads) return;
+    setLoadingMoreThreads(true);
+    try {
+      const res = await fetch(`/api/threads?cursor=${encodeURIComponent(threadsNextCursor)}`);
+      if (res.ok) {
+        const data: { threads: ThreadMeta[]; nextCursor: string | null } = await res.json();
+        setThreads((prev) => [...prev, ...data.threads.map(threadMetaToSummary)]);
+        setThreadsNextCursor(data.nextCursor);
+      }
+    } catch (err) {
+      console.error("[page] falha ao carregar mais conversas:", err);
+    } finally {
+      setLoadingMoreThreads(false);
+    }
+  }, [threadsNextCursor, loadingMoreThreads]);
+
+  // Busca a página de mensagens ANTERIORES às já carregadas na thread ativa
+  // e as antepõe (scroll-up "carregar mensagens anteriores" — ver
+  // lib/db/firebase-store.ts pro porquê a página inicial já vem com teto).
+  // setMessages aceita atualização funcional (ver @ai-sdk/react), então isto
+  // reflete direto no `messages` do useChat, sem precisar reconciliar com
+  // threadMessagesRef manualmente (o efeito de espelhamento já cobre isso).
+  const handleLoadOlderMessages = useCallback(async () => {
+    const cursor = messagesCursors[activeThreadId];
+    if (!cursor || loadingOlderMessages) return;
+    setLoadingOlderMessages(true);
+    try {
+      const res = await fetch(`/api/threads/${activeThreadId}/messages?cursor=${encodeURIComponent(cursor)}`);
+      if (res.ok) {
+        const data: { messages: StoredMessage[]; nextCursor: string | null } = await res.json();
+        const older = storedToUIMessages(data.messages);
+        setMessages((prev) => [...older, ...prev]);
+        setMessagesCursors((prev) => ({ ...prev, [activeThreadId]: data.nextCursor }));
+      }
+    } catch (err) {
+      console.error("[page] falha ao carregar mensagens anteriores:", err);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [activeThreadId, messagesCursors, loadingOlderMessages, setMessages]);
 
   async function handleLogout() {
     await logout();
@@ -273,6 +354,9 @@ export default function ChatPage() {
         userLabel={user.displayName || user.email || "Minha conta"}
         userPhotoURL={user.photoURL}
         disabled={isLoading || !!loadingThreadId}
+        hasMoreThreads={threadsNextCursor !== null}
+        loadingMoreThreads={loadingMoreThreads}
+        onLoadMoreThreads={handleLoadMoreThreads}
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -281,7 +365,7 @@ export default function ChatPage() {
         ) : (
           <>
             <ChatHeader botName={BOT_NAME} isLoading={isLoading} />
-            <div className="flex flex-1 flex-col overflow-y-auto">
+            <div ref={setMessagesScrollEl} className="flex flex-1 flex-col overflow-y-auto">
               {!threadsLoaded ? (
                 <div className="flex flex-1 items-center justify-center text-sm text-muted">
                   Carregando conversas…
@@ -303,6 +387,10 @@ export default function ChatPage() {
                   onEdit={setInput}
                   onRedo={() => regenerate()}
                   onRetry={() => regenerate()}
+                  hasOlderMessages={messagesCursors[activeThreadId] != null}
+                  loadingOlderMessages={loadingOlderMessages}
+                  onLoadOlderMessages={handleLoadOlderMessages}
+                  scrollContainerEl={messagesScrollEl}
                 />
               )}
             </div>

@@ -1,11 +1,47 @@
 import { adminDb } from "@/lib/firebase/admin";
 import type {
   ConversationStore,
+  Page,
+  PageOptions,
   StoredMessage,
   ThreadMeta,
   StoredImage,
   StoredPdf,
 } from "./types";
+
+// Nenhuma leitura de coleção neste arquivo acontece sem `.limit()` — sem
+// isso, listThreads/getMessages cresceriam sem teto conforme o uso real do
+// usuário cresce (mais lento a cada load E mais caro, já que o Firestore
+// cobra por documento lido). Cursor é o valor bruto do campo de orderBy
+// (updatedAt/createdAt) codificado como string — ver encodeCursor/
+// decodeCursor. Sem um tiebreaker (ex.: id do doc) no orderBy, dois
+// documentos com o EXATO mesmo timestamp no limite de uma página podem, em
+// tese, pular ou duplicar na borda — aceito de propósito: evita precisar de
+// um índice composto no Firestore (que exigiria configuração manual extra
+// no console) pra um caso-limite raro (dois docs no mesmo milissegundo).
+const DEFAULT_THREADS_PAGE_SIZE = 30;
+const MAX_THREADS_PAGE_SIZE = 100;
+const DEFAULT_MESSAGES_PAGE_SIZE = 50;
+const MAX_MESSAGES_PAGE_SIZE = 200;
+// Teto de operações por WriteBatch do Admin SDK é 500 — 400 deixa margem.
+const CLEAR_THREAD_BATCH_SIZE = 400;
+
+function clampLimit(requested: number | undefined, fallback: number, max: number): number {
+  if (requested === undefined || !Number.isFinite(requested) || requested <= 0) return fallback;
+  return Math.min(Math.floor(requested), max);
+}
+
+function encodeCursor(value: number): string {
+  return String(value);
+}
+
+function decodeCursor(cursor: string): number {
+  const value = Number(cursor);
+  if (!Number.isFinite(value)) {
+    throw new Error(`Cursor de paginação inválido: "${cursor}".`);
+  }
+  return value;
+}
 
 /**
  * Schema Firestore — um documento raiz por usuário, e tudo mais pendurado
@@ -40,20 +76,73 @@ export class FirebaseConversationStore implements ConversationStore {
     await this.messagesCol(uid, threadId).doc(message.id).set(message);
   }
 
-  async getMessages(uid: string, threadId: string): Promise<StoredMessage[]> {
-    const snap = await this.messagesCol(uid, threadId).orderBy("createdAt", "asc").get();
-    return snap.docs.map((d) => d.data() as StoredMessage);
+  async getMessages(
+    uid: string,
+    threadId: string,
+    opts: PageOptions = {},
+  ): Promise<Page<StoredMessage>> {
+    const limit = clampLimit(opts.limit, DEFAULT_MESSAGES_PAGE_SIZE, MAX_MESSAGES_PAGE_SIZE);
+
+    // Busca da mais NOVA pra mais antiga (startAfter encadeia certo pro caso
+    // de uso real: "carregar mensagens anteriores" ao rolar pra cima) — pede
+    // um item a mais só pra saber se existe próxima página, sem precisar de
+    // uma segunda query count().
+    let query = this.messagesCol(uid, threadId).orderBy("createdAt", "desc").limit(limit + 1);
+    if (opts.cursor) {
+      query = query.startAfter(decodeCursor(opts.cursor));
+    }
+
+    const snap = await query.get();
+    const hasMore = snap.docs.length > limit;
+    const page = snap.docs.slice(0, limit).map((d) => d.data() as StoredMessage);
+    const nextCursor = hasMore ? encodeCursor(page[page.length - 1]!.createdAt) : null;
+
+    // Devolve em ordem CRONOLÓGICA — quem consome (API route, depois a UI)
+    // não deveria precisar inverter nada só porque a query internamente
+    // buscou de trás pra frente.
+    return { items: page.reverse(), nextCursor };
   }
 
   async clearThread(uid: string, threadId: string): Promise<void> {
-    const snap = await this.messagesCol(uid, threadId).get();
-    await Promise.all(snap.docs.map((d) => d.ref.delete()));
+    // Deleta em lotes, não tudo de uma vez com Promise.all solto — uma
+    // conversa longa pode ter milhares de mensagens, e o WriteBatch do
+    // Admin SDK tem teto de 500 operações; paginar a leitura também evita
+    // puxar a cota de leitura inteira numa chamada só.
+    let cursor: number | undefined;
+    for (;;) {
+      let query = this.messagesCol(uid, threadId)
+        .orderBy("createdAt", "asc")
+        .limit(CLEAR_THREAD_BATCH_SIZE);
+      if (cursor !== undefined) query = query.startAfter(cursor);
+
+      const snap = await query.get();
+      if (snap.docs.length === 0) break;
+
+      const batch = adminDb().batch();
+      for (const doc of snap.docs) batch.delete(doc.ref);
+      await batch.commit();
+
+      if (snap.docs.length < CLEAR_THREAD_BATCH_SIZE) break;
+      cursor = (snap.docs[snap.docs.length - 1]!.data() as StoredMessage).createdAt;
+    }
+
     await this.threadsCol(uid).doc(threadId).delete();
   }
 
-  async listThreads(uid: string): Promise<ThreadMeta[]> {
-    const snap = await this.threadsCol(uid).orderBy("updatedAt", "desc").get();
-    return snap.docs.map((d) => d.data() as ThreadMeta);
+  async listThreads(uid: string, opts: PageOptions = {}): Promise<Page<ThreadMeta>> {
+    const limit = clampLimit(opts.limit, DEFAULT_THREADS_PAGE_SIZE, MAX_THREADS_PAGE_SIZE);
+
+    let query = this.threadsCol(uid).orderBy("updatedAt", "desc").limit(limit + 1);
+    if (opts.cursor) {
+      query = query.startAfter(decodeCursor(opts.cursor));
+    }
+
+    const snap = await query.get();
+    const hasMore = snap.docs.length > limit;
+    const items = snap.docs.slice(0, limit).map((d) => d.data() as ThreadMeta);
+    const nextCursor = hasMore ? encodeCursor(items[items.length - 1]!.updatedAt) : null;
+
+    return { items, nextCursor };
   }
 
   async touchThread(
