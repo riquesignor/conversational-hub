@@ -52,10 +52,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return unsubscribe;
     } catch (err) {
       console.error("[AuthProvider] getFirebaseAuth()/onAuthStateChanged falhou ao iniciar:", err);
-      setState({
-        user: null,
-        loading: false,
-        configError: err instanceof Error ? err.message : String(err),
+      // getFirebaseAuth() lança de forma SÍNCRONA (diferente do callback de
+      // erro do onAuthStateChanged acima, que já roda de forma assíncrona
+      // por natureza) — chamar setState direto aqui violaria a regra do
+      // React de não disparar setState de forma síncrona dentro do corpo do
+      // efeito (react-hooks/set-state-in-effect). queueMicrotask empurra
+      // pro próximo tick, ficando equivalente em espírito ao callback
+      // assíncrono acima — sem impacto perceptível (é só uma tela de
+      // diagnóstico de erro de configuração, não o caminho comum).
+      queueMicrotask(() => {
+        setState({
+          user: null,
+          loading: false,
+          configError: err instanceof Error ? err.message : String(err),
+        });
       });
     }
   }, []);

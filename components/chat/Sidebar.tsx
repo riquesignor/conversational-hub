@@ -90,9 +90,9 @@ export function Sidebar({
 
       <div className="flex items-center gap-2 border-t-2 border-divider px-1 pt-3">
         {userPhotoURL ? (
-          // eslint-disable-next-line @next/next/no-img-element -- avatar de
-          // URL externa (Google); next/image exigiria configurar
+          // avatar de URL externa (Google); next/image exigiria configurar
           // remotePatterns pra um domínio que varia por provedor de login.
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={userPhotoURL} alt="" className="h-6 w-6 flex-none border border-divider object-cover" />
         ) : (
           <div className="flex h-6 w-6 flex-none items-center justify-center bg-surface-2 text-[11px] font-bold text-muted">

@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEFAULT_PERSONA_ID, PERSONAS } from "@/lib/personas";
 import { truncate } from "@/lib/format";
@@ -133,7 +133,6 @@ export default function ChatPage() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // A AI SDK recria o Chat interno sempre que `id` muda (mesmo mecanismo já
@@ -145,34 +144,59 @@ export default function ChatPage() {
   // também viaja automaticamente no corpo de cada requisição — é o que
   // app/api/chat/route.ts lê pra saber em qual conversa persistir cada
   // mensagem (sempre sob o uid da sessão, nunca um valor solto do cliente).
-  const { messages, sendMessage, status, error, regenerate } = useChat({
+  const { messages, sendMessage, status, error, regenerate, setMessages } = useChat({
     id: activeThreadId,
-    messages: threadMessagesRef.current[activeThreadId] ?? [],
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: { personaId },
     }),
   });
 
+  // Semeia o Chat recém-(re)criado pela AI SDK (toda vez que `activeThreadId`
+  // muda — ver comentário acima) com o cache local da thread, via
+  // setMessages() em vez de ler threadMessagesRef.current direto no corpo do
+  // render: ler ref durante o render é proibido pela regra react-hooks/refs
+  // (o valor pode ficar dessincronizado sob concurrent rendering). Em
+  // useLayoutEffect, não useEffect, pra rodar ANTES do navegador pintar —
+  // sem isso haveria um flash visível de "conversa vazia" a cada troca de
+  // thread, entre o Chat novo nascer vazio e este efeito repopular.
+  //
+  // setMessages é estável (identidade fixa por chat, ver @ai-sdk/react); só
+  // queremos rodar isto quando activeThreadId muda, não a cada render.
+  useLayoutEffect(() => {
+    setMessages(threadMessagesRef.current[activeThreadId] ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeThreadId]);
+
   const isLoading = status === "submitted" || status === "streaming";
   const isEmpty = messages.length === 0;
 
   // Espelha as mensagens da thread ativa no cache a cada mudança (inclusive
-  // durante o streaming, token a token) e atualiza título/preview da
-  // conversa na sidebar a partir do conteúdo real.
+  // durante o streaming, token a token) — só a escrita no ref, que efeito
+  // pode fazer sem problema (ao contrário de LER ref durante o render, como
+  // useLayoutEffect acima evita).
   useEffect(() => {
     threadMessagesRef.current[activeThreadId] = messages;
-    const { first, last } = firstAndLastText(messages);
-    if (first) {
-      setThreads((prev) =>
-        prev.map((t) =>
-          t.id === activeThreadId
-            ? { ...t, title: truncate(first, 40), snippet: truncate(last ?? first, 48) }
-            : t,
-        ),
-      );
-    }
   }, [messages, activeThreadId]);
+
+  // Título/preview da conversa ATIVA na sidebar, derivados ao vivo do
+  // conteúdo real das mensagens (inclusive durante streaming) — puro cálculo
+  // de render, não setState dentro de efeito (era assim antes; violava
+  // react-hooks/set-state-in-effect sem necessidade, já que isto é uma
+  // derivação, não um efeito colateral de verdade).
+  const liveActiveSummary = useMemo(() => {
+    const { first, last } = firstAndLastText(messages);
+    if (!first) return null;
+    return { title: truncate(first, 40), snippet: truncate(last ?? first, 48) };
+  }, [messages]);
+
+  const displayThreads = useMemo(
+    () =>
+      liveActiveSummary
+        ? threads.map((t) => (t.id === activeThreadId ? { ...t, ...liveActiveSummary } : t))
+        : threads,
+    [threads, activeThreadId, liveActiveSummary],
+  );
 
   function handleSend() {
     const text = input.trim();
@@ -240,7 +264,7 @@ export default function ChatPage() {
     <main className="flex h-dvh bg-bg text-text">
       <Sidebar
         botName={BOT_NAME}
-        threads={threads}
+        threads={displayThreads}
         activeThreadId={activeThreadId}
         onSelectThread={handleSelectThread}
         onNewThread={handleNewThread}

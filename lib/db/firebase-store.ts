@@ -87,7 +87,8 @@ export class FirebaseConversationStore implements ConversationStore {
 
     // `title` fica de fora do merge de propósito — ver doc do método na
     // interface (lib/db/types.ts): só a criação define o título.
-    const { title: _ignoredTitle, ...rest } = patch;
+    const rest = { ...patch };
+    delete rest.title;
     await ref.set({ ...rest, updatedAt: now }, { merge: true });
   }
 
