@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Regras do Firebase Storage — segunda camada de defesa, não a primeira:
+// hoje todo acesso a anexo passa pelo Admin SDK no servidor
+// (lib/storage/attachments.ts pro upload, o proxy autenticado em
+// app/api/attachments/[uid]/[threadId]/[messageId]/[attachmentFile]/route.ts
+// pro download), que ignora estas regras por padrão (Admin SDK tem acesso
+// irrestrito — mesmo desenho de firestore.rules na raiz do projeto pro
+// Firestore). Elas existem pra já deixar o bucket seguro no dia em que
+// alguma tela ler o Storage direto do navegador com o SDK client — sem
+// isso, esse dia chegaria com o bucket todo público por omissão.
+//
+// Deploy: `firebase deploy --only storage` (Firebase CLI) ou colar direto em
+// Storage → Regras no Console.
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Fechado por padrão — sem regra liberando leitura/escrita geral. Só o
+    // Admin SDK (que não passa por aqui) acessa o bucket hoje.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

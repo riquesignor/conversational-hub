@@ -1,24 +1,62 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { PERSONAS } from "@/lib/personas";
+import {
+  ATTACHMENT_KINDS,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  classifyMediaType,
+  guessMediaTypeFromFilename,
+  validateAttachment,
+  type AttachmentKind,
+} from "@/lib/attachments/constraints";
 import { PlusIcon, ImageIcon, PdfIcon, FileIcon, ChevronDownIcon, SendIcon } from "./icons";
+
+/** Anexo ainda não enviado, vivendo só no estado local do Composer — style
+ * de `PendingMessage` comum em composers de chat: existe só até o submit,
+ * quando vira um FileUIPart de verdade (ver PendingAttachment.toFilePart e
+ * app/page.tsx). `url` já é a data URL base64 (lida no momento da seleção,
+ * não no submit) — é o formato que `sendMessage({ files })` da AI SDK espera
+ * pra um FileUIPart manual (ver ai-sdk.dev/docs/ai-sdk-ui/chatbot). */
+export interface PendingAttachment {
+  id: string;
+  kind: AttachmentKind;
+  filename: string;
+  mediaType: string;
+  size: number;
+  url: string;
+}
 
 interface ComposerProps {
   botName: string;
   input: string;
   onInputChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (attachments: PendingAttachment[]) => void;
   isLoading: boolean;
   personaId: string;
   onPersonaChange: (id: string) => void;
 }
 
-const ATTACH_OPTIONS = [
-  { label: "Imagem", icon: ImageIcon },
-  { label: "PDF", icon: PdfIcon },
-  { label: "Arquivo", icon: FileIcon },
+const ATTACH_OPTIONS: Array<{ label: string; kind: AttachmentKind; icon: typeof ImageIcon }> = [
+  { label: "Imagem", kind: "image", icon: ImageIcon },
+  { label: "PDF", kind: "pdf", icon: PdfIcon },
+  { label: "Arquivo", kind: "text", icon: FileIcon },
 ];
+
+const KIND_ICON: Record<AttachmentKind, typeof ImageIcon> = {
+  image: ImageIcon,
+  pdf: PdfIcon,
+  text: FileIcon,
+};
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler o arquivo."));
+    reader.readAsDataURL(file);
+  });
+}
 
 export function Composer({
   botName,
@@ -31,25 +69,105 @@ export function Composer({
 }: ComposerProps) {
   const [attachOpen, setAttachOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
+
+  // Um <input type="file"> escondido por tipo (não um só reaproveitado) —
+  // cada um já nasce com o `accept` certo pro seletor de arquivo do SO
+  // filtrar de cara, em vez de aceitar qualquer coisa e só validar depois.
+  const fileInputRefs = {
+    image: useRef<HTMLInputElement>(null),
+    pdf: useRef<HTMLInputElement>(null),
+    text: useRef<HTMLInputElement>(null),
+  };
+
+  const hasText = input.trim().length > 0;
+  const canSubmit = (hasText || attachments.length > 0) && !isLoading;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    onSubmit();
+    if (!canSubmit) return;
+    onSubmit(attachments);
+    setAttachments([]);
+    setAttachError(null);
+  }
+
+  function openPicker(kind: AttachmentKind) {
+    setAttachOpen(false);
+    fileInputRefs[kind].current?.click();
+  }
+
+  async function handleFilesPicked(kind: AttachmentKind, e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    // Limpa o input já aqui (não só no fim da função) — sem isso, escolher o
+    // MESMO arquivo duas vezes seguidas não dispara onChange na segunda vez
+    // (o navegador só notifica quando o value muda).
+    e.target.value = "";
+    if (files.length === 0) return;
+
+    if (attachments.length + files.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+      setAttachError(`Máximo de ${MAX_ATTACHMENTS_PER_MESSAGE} anexos por mensagem.`);
+      return;
+    }
+
+    const next: PendingAttachment[] = [];
+    for (const file of files) {
+      // file.type vem vazio ou errado pra .md/.csv em vários navegadores —
+      // cai pro fallback por extensão antes de rejeitar (ver constraints.ts).
+      const mediaType = file.type || guessMediaTypeFromFilename(file.name) || "";
+      const check = validateAttachment(mediaType, file.size);
+      if (!check.ok) {
+        setAttachError(`"${file.name}": ${check.error}`);
+        return;
+      }
+
+      const detectedKind = classifyMediaType(mediaType) ?? kind;
+      try {
+        const url = await readAsDataUrl(file);
+        next.push({
+          id: crypto.randomUUID(),
+          kind: detectedKind,
+          filename: file.name,
+          mediaType,
+          size: file.size,
+          url,
+        });
+      } catch {
+        setAttachError(`Não consegui ler "${file.name}".`);
+        return;
+      }
+    }
+
+    setAttachError(null);
+    setAttachments((prev) => [...prev, ...next]);
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
   return (
     <div className="relative flex flex-none flex-col gap-2 border-t-2 border-divider bg-surface px-4 py-3 sm:px-6">
-      {/* Menu de anexo: só a interface — nenhuma opção envia arquivo de
-          verdade ainda (mesma fidelidade do mock original, cujo próprio
-          protótipo também só fecha o menu ao clicar numa opção). */}
+      {ATTACH_OPTIONS.map(({ kind }) => (
+        <input
+          key={kind}
+          ref={fileInputRefs[kind]}
+          type="file"
+          multiple
+          accept={ATTACHMENT_KINDS[kind].accept}
+          onChange={(e) => void handleFilesPicked(kind, e)}
+          className="hidden"
+        />
+      ))}
+
       {attachOpen && (
         <div className="absolute bottom-full left-4 z-10 mb-2 flex animate-pop-in flex-col overflow-hidden rounded-lg border border-divider bg-bg shadow-[var(--shadow-dropdown)] sm:left-6">
-          {ATTACH_OPTIONS.map(({ label, icon: Icon }) => (
+          {ATTACH_OPTIONS.map(({ label, kind, icon: Icon }) => (
             <button
               key={label}
-              onClick={() => setAttachOpen(false)}
+              type="button"
+              onClick={() => openPicker(kind)}
               className="flex min-w-[160px] items-center gap-2.5 px-4 py-2.5 text-left text-[13px] font-semibold text-text hover:bg-surface-2"
             >
               <Icon />
@@ -57,6 +175,40 @@ export function Composer({
             </button>
           ))}
         </div>
+      )}
+
+      {attachments.length > 0 && (
+        <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-1.5">
+          {attachments.map((a) => {
+            const Icon = KIND_ICON[a.kind];
+            return (
+              <span
+                key={a.id}
+                className="flex max-w-[220px] items-center gap-1.5 rounded-md border border-divider bg-bg py-1 pl-2 pr-1 text-xs text-text"
+              >
+                {a.kind === "image" ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- preview transiente a partir de uma data URL local, não um asset otimizável pelo next/image.
+                  <img src={a.url} alt="" className="h-4 w-4 flex-none rounded-sm object-cover" />
+                ) : (
+                  <Icon size={13} className="flex-none text-muted" />
+                )}
+                <span className="truncate">{a.filename}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(a.id)}
+                  title="Remover anexo"
+                  className="flex h-4 w-4 flex-none items-center justify-center text-muted hover:text-accent-text"
+                >
+                  <PlusIcon size={11} className="rotate-45" />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {attachError && (
+        <p className="mx-auto w-full max-w-3xl text-xs font-semibold text-accent-text">{attachError}</p>
       )}
 
       <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-3xl gap-2">
@@ -80,7 +232,7 @@ export function Composer({
         />
         <button
           type="submit"
-          disabled={isLoading || !input.trim()}
+          disabled={!canSubmit}
           className="flex flex-none items-center gap-1.5 rounded-md bg-accent-strong px-4 py-2.5 text-sm font-extrabold text-on-accent transition-[transform,background-color] active:scale-95 active:bg-accent disabled:opacity-40"
         >
           <SendIcon />

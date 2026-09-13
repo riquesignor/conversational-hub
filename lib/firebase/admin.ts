@@ -1,6 +1,8 @@
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
+import type { Bucket } from "@google-cloud/storage";
 
 /**
  * SDK admin do Firebase (server-only — nunca importe isto de um Client
@@ -50,4 +52,26 @@ export function adminAuth(): Auth {
 
 export function adminDb(): Firestore {
   return getFirestore(getAdminApp());
+}
+
+/**
+ * Bucket do Firebase Storage — usado só por lib/storage/attachments.ts, pro
+ * upload dos anexos de imagem/PDF/texto (ver README, seção "Anexos").
+ *
+ * Reaproveita NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET (a mesma env var que o SDK
+ * client já usa em lib/firebase/client.ts) em vez de pedir uma nova: o nome
+ * do bucket não é segredo — quem protege os arquivos é o bucket ser privado
+ * por padrão (Storage Rules, ver storage.rules) + todo acesso passar por
+ * app/api/attachments/.../route.ts, nunca o cliente lendo o bucket direto
+ * (mesmo desenho de lib/db/firebase-store.ts pro Firestore).
+ */
+export function adminStorage(): Bucket {
+  const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+  if (!bucketName) {
+    throw new Error(
+      "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET não configurado — necessário pra " +
+        "anexos (Firebase Storage). Ver .env.example.",
+    );
+  }
+  return getStorage(getAdminApp()).bucket(bucketName);
 }

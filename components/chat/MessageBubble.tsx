@@ -13,7 +13,7 @@ import { SKILLS_CATALOG } from "@/lib/skills/catalog";
 import { renderToolSummary } from "@/lib/skills/render-tool-output";
 import { parseMessageContent } from "@/lib/parse-message-content";
 import { CodeBlock } from "./CodeBlock";
-import { RedoIcon, EditIcon, CopyIcon } from "./icons";
+import { RedoIcon, EditIcon, CopyIcon, PdfIcon, FileIcon } from "./icons";
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -79,6 +79,32 @@ export function MessageBubble({ message, botName, showRedo, onEdit, onRedo }: Me
                     {seg.text}
                   </div>
                 ) : null,
+              )}
+            </div>
+          );
+        }
+
+        if (part.type === "file") {
+          const isImage = part.mediaType.startsWith("image/");
+          return (
+            <div key={i} className={`flex max-w-[82%] ${isUser ? "justify-end" : "justify-start"}`}>
+              {isImage ? (
+                // eslint-disable-next-line @next/next/no-img-element -- a URL tanto pode ser uma data URL otimista (mensagem ainda não persistida) quanto o proxy autenticado (StoredAttachment.url) — nenhuma das duas é um asset estático que o next/image saiba otimizar.
+                <img
+                  src={part.url}
+                  alt={part.filename ?? "Imagem enviada"}
+                  className="block max-h-64 max-w-full rounded-lg border border-divider object-contain"
+                />
+              ) : (
+                <a
+                  href={part.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 rounded-md border border-divider bg-surface-2 px-3 py-2 text-xs font-semibold text-text hover:bg-surface"
+                >
+                  {part.mediaType === "application/pdf" ? <PdfIcon size={14} /> : <FileIcon size={14} />}
+                  <span className="max-w-[200px] truncate">{part.filename ?? "Arquivo"}</span>
+                </a>
               )}
             </div>
           );

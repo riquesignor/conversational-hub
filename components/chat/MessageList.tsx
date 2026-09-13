@@ -52,7 +52,13 @@ function estimateRowSize(row: Row): number {
     case "message": {
       const text = messageText(row.message);
       const approxLines = Math.max(1, Math.ceil(text.length / 55));
-      return 44 + approxLines * 21;
+      // Anexo (imagem/PDF/texto, ver MessageBubble.tsx) soma uma estimativa
+      // fixa por item — bem grosseiro de propósito (uma imagem pode ir de
+      // poucos px de altura até o teto de 256px de max-h-64), só pra chutar
+      // mais perto do real e sofrer menos salto de scroll até measureElement
+      // corrigir no primeiro paint (ver comentário da função acima).
+      const attachmentCount = row.message.parts.filter((p) => p.type === "file").length;
+      return 44 + approxLines * 21 + attachmentCount * 120;
     }
   }
 }

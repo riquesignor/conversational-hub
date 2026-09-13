@@ -1,6 +1,14 @@
 import { openai } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
-import type { LanguageModel } from "ai";
+import type { LanguageModel, ToolSet } from "ai";
+
+// "||" em vez de "??" de propósito: uma env var criada com valor em branco
+// (comum em painéis como o da Vercel) chega como string vazia, não como
+// undefined — "??" não pega esse caso e derruba o switch no default. "||"
+// trata "" como "não definido" também.
+function activeProvider(): string {
+  return process.env.LLM_PROVIDER || "google";
+}
 
 /**
  * Abstração de provider de LLM.
@@ -21,11 +29,7 @@ import type { LanguageModel } from "ai";
  * provider está ativo.
  */
 export function getModel(): LanguageModel {
-  // "||" em vez de "??" de propósito: uma env var criada com valor em
-  // branco (comum em painéis como o da Vercel) chega como string vazia,
-  // não como undefined — "??" não pega esse caso e derruba o switch no
-  // default. "||" trata "" como "não definido" também.
-  const provider = process.env.LLM_PROVIDER || "google";
+  const provider = activeProvider();
 
   switch (provider) {
     case "google":
@@ -39,5 +43,29 @@ export function getModel(): LanguageModel {
       throw new Error(
         `LLM_PROVIDER="${provider}" não implementado em lib/llm/provider.ts`,
       );
+  }
+}
+
+/**
+ * Tool(s) de busca na web NATIVAS do provider ativo — não uma tool nossa
+ * (compare com lib/skills/, que são todas implementadas neste projeto). O
+ * Gemini expõe "Google Search grounding" como uma tool de primeira classe do
+ * próprio modelo: zero chave nova, zero custo além do que já está
+ * configurado (mesma chave GOOGLE_GENERATIVE_AI_API_KEY do getModel() acima).
+ *
+ * Só existe pro provider "google" hoje — a OpenAI não expõe um equivalente
+ * gratuito/nativo pelo @ai-sdk/openai, e este projeto não assume nenhuma
+ * chave paga de busca (Tavily/Brave/Serper) que o dono do fork não pediu.
+ * Se um dia trocar pra "openai" e quiser busca na web, o lugar certo pra
+ * adicionar uma tool própria é aqui, num novo `case` do switch abaixo — o
+ * resto do projeto (route.ts) já não sabe/não precisa saber qual provider
+ * está ativo, só chama getWebSearchTools() e espalha o resultado nas tools.
+ */
+export function getWebSearchTools(): ToolSet {
+  switch (activeProvider()) {
+    case "google":
+      return { google_search: google.tools.googleSearch({}) };
+    default:
+      return {};
   }
 }

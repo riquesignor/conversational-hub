@@ -1,12 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { streamText, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
-import { getModel } from "@/lib/llm/provider";
+import {
+  streamText,
+  stepCountIs,
+  convertToModelMessages,
+  type UIMessage,
+  type FileUIPart,
+} from "ai";
+import { getModel, getWebSearchTools } from "@/lib/llm/provider";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTools } from "@/lib/skills";
 import { getStore } from "@/lib/db";
 import { getPersona } from "@/lib/personas";
 import { getSessionUser } from "@/lib/auth/session";
 import { truncate } from "@/lib/format";
+import { MAX_ATTACHMENTS_PER_MESSAGE, validateAttachment } from "@/lib/attachments/constraints";
+import { uploadAttachment } from "@/lib/storage/attachments";
+import type { StoredAttachment } from "@/lib/db/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -20,9 +29,15 @@ const BASE_INSTRUCTIONS =
   "Responda em português por padrão, a menos que o usuário escreva em outro idioma. " +
   "Você tem ferramentas (tools) disponíveis — use-as sempre que fizerem sentido em " +
   "vez de tentar adivinhar: data/hora atual, contas matemáticas, busca de Pokémon " +
-  'na PokéAPI e consulta de endereço por CEP. Se o usuário perguntar o que você ' +
-  'sabe fazer, use a tool "list_skills" em vez de responder de memória, porque a ' +
-  "lista pode mudar.";
+  'na PokéAPI, consulta de endereço por CEP e busca na web em tempo real (quando ' +
+  'disponível). Se o usuário perguntar o que você sabe fazer, use a tool ' +
+  '"list_skills" em vez de responder de memória, porque a lista pode mudar. ' +
+  "Você também consegue LER imagens, PDFs e arquivos de texto que o usuário anexar " +
+  "diretamente na mensagem — descreva, transcreva ou responda sobre o conteúdo " +
+  "deles normalmente, sem pedir pra colar o texto. Quando a pergunta depender de " +
+  "informação que pode ter mudado depois do seu treinamento (notícias, preços, " +
+  "versões de software, eventos recentes), prefira buscar na web em vez de " +
+  "responder de memória — e diga que a informação veio de uma busca.";
 
 function buildSystemPrompt(personaId: string | undefined): string {
   const persona = getPersona(personaId);
@@ -35,13 +50,21 @@ function getClientIp(req: Request): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-function lastUserText(messages: UIMessage[]): string {
-  const last = [...messages].reverse().find((m) => m.role === "user");
-  if (!last) return "";
-  return last.parts
+function lastUserMessage(messages: UIMessage[]): UIMessage | undefined {
+  return [...messages].reverse().find((m) => m.role === "user");
+}
+
+function textOf(message: UIMessage | undefined): string {
+  if (!message) return "";
+  return message.parts
     .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
     .map((p) => p.text)
     .join("\n");
+}
+
+function fileParts(message: UIMessage | undefined): FileUIPart[] {
+  if (!message) return [];
+  return message.parts.filter((p): p is FileUIPart => p.type === "file");
 }
 
 export async function POST(req: Request) {
@@ -78,26 +101,69 @@ export async function POST(req: Request) {
   const effectiveThreadId = threadId || randomUUID();
   const store = getStore();
 
-  // Persistência é best-effort: nunca deve derrubar a resposta do chat.
-  const userText = lastUserText(messages);
-  if (userText) {
-    store
-      .appendMessage(user.uid, effectiveThreadId, {
-        id: randomUUID(),
-        role: "user",
-        text: userText,
-        createdAt: Date.now(),
-      })
-      .catch((err) => console.error("[api/chat] falha ao salvar mensagem do usuário:", err));
+  const userMessage = lastUserMessage(messages);
+  const userText = textOf(userMessage);
+  const userFileParts = fileParts(userMessage);
+
+  if (userFileParts.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+    return Response.json(
+      { error: `Máximo de ${MAX_ATTACHMENTS_PER_MESSAGE} anexos por mensagem.` },
+      { status: 400 },
+    );
+  }
+
+  // Revalida tipo/tamanho no servidor mesmo já validado no Composer — nunca
+  // confiar só na checagem do cliente (mesmo princípio de defesa em
+  // profundidade do resto desta rota: uid, rate limit, etc). Falha ANTES de
+  // gastar uma chamada ao modelo ou tentar subir qualquer coisa pro Storage.
+  for (const part of userFileParts) {
+    const base64Length = part.url.length - part.url.indexOf(",") - 1;
+    const approxBytes = Math.floor((base64Length * 3) / 4);
+    const check = validateAttachment(part.mediaType, approxBytes);
+    if (!check.ok) {
+      return Response.json({ error: check.error }, { status: 400 });
+    }
+  }
+
+  // Persistência é best-effort: nunca deve derrubar a resposta do chat. Uma
+  // mensagem só com anexo (sem legenda) também conta como "tem o que salvar"
+  // — por isso o guard abaixo não é só `if (userText)` como antes.
+  const userMessageId = randomUUID();
+  if (userText || userFileParts.length > 0) {
+    // IIFE async (não só `.catch()` solto como o resto da rota) porque este
+    // bloco precisa de um `await` antes de chamar appendMessage — subir os
+    // anexos pro Storage primeiro. Continua best-effort: erro aqui nunca
+    // chega a afetar `result` abaixo, que já começou a streamar em paralelo.
+    (async () => {
+      try {
+        const attachments: StoredAttachment[] = userFileParts.length
+          ? await Promise.all(
+              userFileParts.map((part) => uploadAttachment(user.uid, effectiveThreadId, userMessageId, part)),
+            )
+          : [];
+
+        await store.appendMessage(user.uid, effectiveThreadId, {
+          id: userMessageId,
+          role: "user",
+          text: userText,
+          createdAt: Date.now(),
+          ...(attachments.length > 0 ? { attachments } : {}),
+        });
+      } catch (err) {
+        console.error("[api/chat] falha ao salvar mensagem do usuário (ou seus anexos):", err);
+      }
+    })();
 
     // title só "pega" na criação da thread (primeira mensagem) — ver o
     // contrato do método em lib/db/types.ts. Em turnos seguintes isto só
-    // atualiza personaId/lastMessagePreview/updatedAt.
+    // atualiza personaId/lastMessagePreview/updatedAt. Uma mensagem só com
+    // anexo (sem texto) cai no fallback de touchThread pra título ("Nova
+    // conversa", ver lib/db/firebase-store.ts) em vez de truncar string vazia.
     store
       .touchThread(user.uid, effectiveThreadId, {
-        title: truncate(userText, 40),
+        ...(userText ? { title: truncate(userText, 40) } : {}),
         personaId,
-        lastMessagePreview: truncate(userText, 48),
+        lastMessagePreview: truncate(userText || "📎 Anexo", 48),
       })
       .catch((err) => console.error("[api/chat] falha ao atualizar metadados da thread:", err));
   }
@@ -106,7 +172,17 @@ export async function POST(req: Request) {
     model: getModel(),
     system: buildSystemPrompt(personaId),
     messages: await convertToModelMessages(messages),
-    tools: getTools(),
+    // Tools próprias (lib/skills/) + busca nativa do provider ativo (ver
+    // getWebSearchTools() em lib/llm/provider.ts — hoje só Gemini, {} pra
+    // qualquer outro). ATENÇÃO se um dia usar Gemini 2.x/anteriores: versões
+    // mais antigas da Search Grounding tool do Google não podiam ser
+    // combinadas com function-calling tools próprias no mesmo request ("tool
+    // use with function calling is not supported"). gemini-3.5-flash (default
+    // atual, ver provider.ts) já suporta as duas juntas, mas se trocar de
+    // modelo e essa combinação passar a estourar erro do provider (vai
+    // aparecer no log do onError abaixo), a saída mais rápida é comentar a
+    // linha `...getWebSearchTools()` até confirmar suporte na versão nova.
+    tools: { ...getTools(), ...getWebSearchTools() },
     // Permite até 5 "passos": o modelo pode chamar uma tool, ler o
     // resultado e responder (ou encadear outra tool) antes de finalizar.
     // Sem isso, a AI SDK para no primeiro tool call e nunca gera a

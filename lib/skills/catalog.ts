@@ -50,4 +50,15 @@ export const SKILLS_CATALOG: SkillMeta[] = [
     title: "Lista de habilidades",
     description: "Lista tudo que o bot sabe fazer hoje.",
   },
+  {
+    // Única entrada aqui que NÃO é uma tool implementada em lib/skills/ —
+    // é a busca nativa do Gemini (ver getWebSearchTools() em
+    // lib/llm/provider.ts), só listada de propósito pra o `list_skills`
+    // avisar o modelo que ela existe e pra MessageBubble.tsx mostrar um
+    // título legível em vez do nome cru da tool ("google_search") enquanto
+    // ela roda. Só aparece de fato quando LLM_PROVIDER=google (default).
+    id: "google_search",
+    title: "Busca no Google",
+    description: "Pesquisa na web em tempo real (Google Search) quando a informação pode ter mudado ou não é de conhecimento geral.",
+  },
 ];

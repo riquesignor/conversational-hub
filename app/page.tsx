@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import type { UIMessage } from "ai";
+import type { FileUIPart, UIMessage } from "ai";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEFAULT_PERSONA_ID, PERSONAS } from "@/lib/personas";
@@ -18,7 +18,7 @@ import { Sidebar, type ThreadSummary } from "@/components/chat/Sidebar";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { EmptyState } from "@/components/chat/EmptyState";
 import { MessageList } from "@/components/chat/MessageList";
-import { Composer } from "@/components/chat/Composer";
+import { Composer, type PendingAttachment } from "@/components/chat/Composer";
 import { SettingsPanel } from "@/components/chat/SettingsPanel";
 
 const BOT_NAME = "Zezinho";
@@ -52,7 +52,19 @@ function storedToUIMessages(stored: StoredMessage[]): UIMessage[] {
   return stored.map((m) => ({
     id: m.id,
     role: m.role,
-    parts: [{ type: "text", text: m.text }],
+    parts: [
+      { type: "text", text: m.text },
+      // Reidrata os anexos como FileUIPart de verdade — não só pra exibição
+      // (MessageBubble.tsx lê `message.parts` pra achar os `type: "file"`),
+      // mas também pro modelo "ver" de novo o anexo se a conversa continuar
+      // depois de um reload (convertToModelMessages, em app/api/chat/route.ts,
+      // manda esses parts de volta pro provider a cada novo turno). `url`
+      // aqui já é o caminho pro proxy autenticado (StoredAttachment.url, ver
+      // lib/storage/attachments.ts) — nunca uma URL direta do bucket.
+      ...(m.attachments ?? []).map(
+        (a): FileUIPart => ({ type: "file", filename: a.filename, mediaType: a.mediaType, url: a.url }),
+      ),
+    ],
   }));
 }
 
@@ -232,10 +244,20 @@ export default function ChatPage() {
     [threads, activeThreadId, liveActiveSummary],
   );
 
-  function handleSend() {
+  function handleSend(attachments: PendingAttachment[]) {
     const text = input.trim();
-    if (!text || isLoading) return;
-    sendMessage({ text });
+    if ((!text && attachments.length === 0) || isLoading) return;
+    sendMessage({
+      text,
+      // FileUIPart[] manual (não FileList) — os anexos já foram lidos como
+      // data URL no próprio Composer (ver readAsDataUrl lá), então não há
+      // nada pra "converter" aqui, só remapear o shape (PendingAttachment
+      // carrega um `kind`/`size` só usados pra UI local, que o FileUIPart da
+      // AI SDK não conhece).
+      files: attachments.map(
+        (a): FileUIPart => ({ type: "file", filename: a.filename, mediaType: a.mediaType, url: a.url }),
+      ),
+    });
     setInput("");
   }
 

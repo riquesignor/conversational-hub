@@ -1,8 +1,26 @@
+/** Um anexo (imagem, PDF ou arquivo de texto) já persistido no Firebase
+ * Storage — ver lib/storage/attachments.ts (upload) e
+ * app/api/attachments/[uid]/[threadId]/[messageId]/[attachmentFile]/route.ts
+ * (download autenticado). `url` é sempre o caminho pra esse proxy, NUNCA uma
+ * URL direta do bucket (que fica privado — ver storage.rules na raiz). */
+export interface StoredAttachment {
+  id: string;
+  filename: string;
+  mediaType: string;
+  size: number;
+  url: string;
+}
+
 export interface StoredMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
   createdAt: number;
+  /** Anexos da mensagem (hoje só o usuário manda — ver app/api/chat/route.ts).
+   * Ausente/undefined em toda mensagem sem anexo, nunca um array vazio (o
+   * Firestore aceita omitir a chave, mas grava `[]` do mesmo jeito que
+   * qualquer outro valor — melhor nem escrever o campo). */
+  attachments?: StoredAttachment[];
 }
 
 /** Metadados de uma conversa (thread) — o que a sidebar precisa pra listar,
