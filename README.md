@@ -195,6 +195,46 @@ Isso é intencional (mesmo padrão de "falha só quando usado, nunca só por
 existir no código" do resto do projeto — ver `lib/llm/provider.ts`), não um
 bug.
 
+## Anexos
+
+O chat aceita anexar imagem, PDF e arquivo de texto genérico (`.txt`/`.md`/`.csv`)
+numa mensagem — a mídia entra no modelo (multimodal, via `FileUIPart` da AI
+SDK) e fica persistida pra sobreviver a reload/reabrir a conversa.
+
+Login e histórico de mensagens continuam 100% Firebase (Auth + Firestore,
+seção acima) — o arquivo binário em si (a imagem/PDF/txt) fica no
+**Supabase Storage**, não no Firebase Storage. Motivo: desde set/2024 o
+Firebase Storage passou a exigir o projeto no plano Blaze (cartão de crédito
+vinculado), mesmo pra ficar dentro da cota grátis — ver
+[o anúncio oficial](https://firebase.google.com/docs/storage/faqs-storage-changes-announced-sept-2024).
+Supabase Storage no plano Free (1GB de storage, 5GB de egress/mês) não pede
+cartão pra criar o projeto, o que mantém este projeto 100% gratuito.
+
+**Setup (uma vez só):**
+
+1. Crie um projeto grátis em https://supabase.com (sem cartão).
+2. **Storage** → New bucket → nome `attachments` → deixe **desmarcado**
+   "Public bucket". O bucket precisa ficar privado: todo acesso passa pelo
+   proxy autenticado em `app/api/attachments/.../route.ts`
+   (`lib/storage/attachments.ts` faz o upload, nunca o cliente falando com o
+   Supabase direto).
+3. **Project Settings → API** → copie a "Project URL" e a chave
+   **`service_role`** (não a `anon public` — essa não tem permissão de
+   escrita no bucket privado).
+4. Preencha `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no `.env.local`
+   (ver `.env.example`). `SUPABASE_STORAGE_BUCKET` é opcional, default
+   `attachments`.
+
+Sem essas duas env vars, o resto do app funciona normal (login, chat sem
+anexo) — só a tentativa de enviar um anexo falha (`uploadAttachment()`
+lança erro explicando o que falta), mesmo padrão de "falha só quando usado"
+já mencionado acima.
+
+Tetos e tipos aceitos ficam centralizados em `lib/attachments/constraints.ts`
+(máximo 3 anexos por mensagem; imagem até 6MB, PDF até 10MB, texto até 2MB) —
+validados tanto no cliente (`components/chat/Composer.tsx`) quanto no
+servidor (`app/api/chat/route.ts`, defesa em profundidade).
+
 ## Interface
 
 A UI (`app/page.tsx` + `components/chat/`) segue o design "Zezinho Chatbot"
@@ -436,8 +476,6 @@ do passo 4).
 - **Um único provider de LLM ativo por vez** — não há fallback automático
   entre provedores. Adicionar isso é natural depois, encapsulando um
   `try/catch` com retry em `lib/llm/provider.ts` ou na rota.
-- **Menu de anexo é só interface** — abre e fecha, mas não envia arquivo
-  nenhum de verdade (ver seção "Interface" acima).
 - **`lookup_pokemon`/`lookup_cep` dependem de rede externa liberada** —
   funcionam normal na Vercel; só não dá pra testar dentro de sandboxes com
   egress restrito (mesma categoria de limitação que já existia com a API do
@@ -450,12 +488,6 @@ do passo 4).
   aberta — ver "Limitações conhecidas").
 - Enforçar e-mail verificado antes de liberar o chat (cadastro por
   e-mail/senha).
-- Upload de anexo de verdade (imagem/PDF/arquivo) — o botão e o menu já
-  existem na UI (`components/chat/Composer.tsx`), o schema de destino já
-  existe no Firestore (`users/{uid}/images`, `/pdfs` — ver "Autenticação e
-  Firestore"); falta subir o arquivo (Firebase Storage), converter pra uma
-  `FileUIPart` da AI SDK, e confirmar que o provider ativo suporta o tipo
-  de mídia enviado.
 - Adicionar um segundo provider (Groq também tem free tier sem cartão e é a
   adição mais barata) para demonstrar a abstração funcionando de fato —
   exige `npm install @ai-sdk/groq` e uma chave de API do Groq.

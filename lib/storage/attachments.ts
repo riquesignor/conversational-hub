@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { adminStorage } from "@/lib/firebase/admin";
+import { adminSupabase, attachmentsBucket } from "@/lib/supabase/admin";
 import type { StoredAttachment } from "@/lib/db/types";
 
 /** Formato mínimo de um FileUIPart (ver Composer.tsx/app/page.tsx) que este
@@ -37,7 +37,7 @@ function safeFilename(name: string | undefined): string {
 }
 
 /**
- * Faz upload de UM anexo pro Firebase Storage e devolve os metadados já no
+ * Faz upload de UM anexo pro Supabase Storage e devolve os metadados já no
  * formato persistido (StoredMessage.attachments, ver lib/db/types.ts).
  *
  * Path determinístico `users/{uid}/threads/{threadId}/{messageId}/{attachmentId}-{filename}`
@@ -57,13 +57,12 @@ export async function uploadAttachment(
   const storageFilename = `${attachmentId}-${filename}`;
   const storagePath = `users/${uid}/threads/${threadId}/${messageId}/${storageFilename}`;
 
-  const file = adminStorage().file(storagePath);
-  await file.save(buffer, {
-    contentType: mediaType,
-    // resumable:false — arquivos pequenos (tetos em lib/attachments/constraints.ts,
-    // no máximo alguns MB), upload resumível só adiciona overhead de rede.
-    resumable: false,
-  });
+  const { error } = await adminSupabase()
+    .storage.from(attachmentsBucket())
+    .upload(storagePath, buffer, { contentType: mediaType, upsert: false });
+  if (error) {
+    throw new Error(`Falha ao subir anexo pro Supabase Storage: ${error.message}`);
+  }
 
   return {
     id: attachmentId,
@@ -71,8 +70,9 @@ export async function uploadAttachment(
     mediaType,
     size: buffer.byteLength,
     // Caminho pro proxy autenticado — NUNCA uma URL direta do bucket, que
-    // fica privado (ver storage.rules na raiz do projeto). O segmento final
-    // precisa bater exatamente com `storageFilename` acima: é assim que
+    // fica privado (bucket criado como "private" no dashboard do Supabase,
+    // ver README). O segmento final precisa bater exatamente com
+    // `storageFilename` acima: é assim que
     // app/api/attachments/.../[attachmentFile]/route.ts reconstrói o
     // `storagePath` pra buscar o arquivo certo no bucket.
     url: `/api/attachments/${uid}/${threadId}/${messageId}/${encodeURIComponent(storageFilename)}`,
