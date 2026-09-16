@@ -31,6 +31,11 @@ export interface ThreadMeta {
   personaId?: string;
   /** Prévia da última mensagem (qualquer papel) — pro rótulo na sidebar. */
   lastMessagePreview?: string;
+  /** Fixada no topo da sidebar (seção "Fixados") — ver renameThread/
+   * setThreadPinned abaixo. Ausente = não fixada (nunca grava `false`
+   * explícito no Firestore, mesma convenção de `attachments?` em
+   * StoredMessage: evita escrever um campo que quase toda thread não usa). */
+  pinned?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -89,6 +94,9 @@ export interface ConversationStore {
    * ANTIGAS que a atual (scroll-up "carregar mensagens anteriores"). */
   getMessages(uid: string, threadId: string, opts?: PageOptions): Promise<Page<StoredMessage>>;
 
+  /** Apaga a conversa inteira (mensagens + o próprio doc da thread) — é a
+   * operação por trás de "Excluir" na sidebar (ver
+   * app/api/threads/[threadId]/route.ts, DELETE). */
   clearThread(uid: string, threadId: string): Promise<void>;
 
   /** Conversas do usuário, mais recente primeiro (por `updatedAt`) — alimenta
@@ -100,14 +108,26 @@ export interface ConversationStore {
    * Cria a thread se ainda não existir (usando `patch.title` como título
    * inicial) ou só atualiza `updatedAt`/`personaId`/`lastMessagePreview` se
    * já existir. `patch.title` é IGNORADO nessa segunda chamada de propósito
-   * — não existe "renomear conversa" ainda, então nunca sobrescreve um
-   * título já definido a partir da primeira mensagem.
+   * — o título "automático" (derivado da primeira mensagem) nunca deve
+   * sobrescrever silenciosamente um título que o usuário definiu de
+   * propósito via `renameThread`.
    */
   touchThread(
     uid: string,
     threadId: string,
     patch: Partial<Omit<ThreadMeta, "id" | "createdAt" | "updatedAt">>,
   ): Promise<void>;
+
+  /** Renomeia uma conversa já existente — ao contrário de `touchThread`,
+   * esta É a ação explícita do usuário pra trocar o título, então sempre
+   * sobrescreve (nunca ignora `title` como `touchThread` faz). Não faz
+   * nada (silenciosamente) se `threadId` não existir — mesma postura do
+   * resto da interface, que nunca expõe se um id existe ou não pra evitar
+   * enumeração. */
+  renameThread(uid: string, threadId: string, title: string): Promise<void>;
+
+  /** Fixa/desfixa uma conversa no topo da sidebar. */
+  setThreadPinned(uid: string, threadId: string, pinned: boolean): Promise<void>;
 
   listImages(uid: string): Promise<StoredImage[]>;
   saveImage(uid: string, image: StoredImage): Promise<void>;

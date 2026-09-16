@@ -23,7 +23,7 @@ export function CodeBlock({ language, code }: CodeBlockProps) {
   }
 
   return (
-    <div className="max-w-full overflow-hidden rounded-lg bg-code-bg text-code-text">
+    <div className="max-w-full overflow-hidden rounded-[var(--radius-sm)] bg-code-bg text-code-text">
       <div className="flex items-center justify-between border-b border-code-border px-2.5 py-1.5">
         <span className="font-mono text-[10.5px] uppercase tracking-wider text-code-lang">
           {language}

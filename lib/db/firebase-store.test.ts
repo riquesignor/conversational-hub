@@ -329,4 +329,56 @@ describe("FirebaseConversationStore", () => {
       expect((await store.listThreads("u1")).items).toEqual([]);
     });
   });
+
+  describe("renameThread", () => {
+    it("sobrescreve o título de uma thread existente", async () => {
+      await store.touchThread("u1", "t1", { title: "Título original" });
+      await store.renameThread("u1", "t1", "Novo título");
+
+      const { items } = await store.listThreads("u1");
+      expect(items[0]!.title).toBe("Novo título");
+    });
+
+    it("aparado (trim) e cai pra 'Nova conversa' quando vira vazio", async () => {
+      await store.touchThread("u1", "t1", { title: "T" });
+      await store.renameThread("u1", "t1", "   ");
+
+      const { items } = await store.listThreads("u1");
+      expect(items[0]!.title).toBe("Nova conversa");
+    });
+
+    it("não faz nada (sem erro) se a thread não existir", async () => {
+      await expect(store.renameThread("u1", "inexistente", "X")).resolves.toBeUndefined();
+      expect((await store.listThreads("u1")).items).toEqual([]);
+    });
+
+    it("atualiza updatedAt sem mexer em createdAt", async () => {
+      await store.touchThread("u1", "t1", { title: "T" });
+      const before = (await store.listThreads("u1")).items[0]!;
+
+      await new Promise((r) => setTimeout(r, 5));
+      await store.renameThread("u1", "t1", "T2");
+
+      const after = (await store.listThreads("u1")).items[0]!;
+      expect(after.updatedAt).toBeGreaterThan(before.updatedAt);
+      expect(after.createdAt).toBe(before.createdAt);
+    });
+  });
+
+  describe("setThreadPinned", () => {
+    it("fixa e depois desfixa uma thread", async () => {
+      await store.touchThread("u1", "t1", { title: "T" });
+
+      await store.setThreadPinned("u1", "t1", true);
+      expect((await store.listThreads("u1")).items[0]!.pinned).toBe(true);
+
+      await store.setThreadPinned("u1", "t1", false);
+      expect((await store.listThreads("u1")).items[0]!.pinned).toBe(false);
+    });
+
+    it("não faz nada (sem erro) se a thread não existir", async () => {
+      await expect(store.setThreadPinned("u1", "inexistente", true)).resolves.toBeUndefined();
+      expect((await store.listThreads("u1")).items).toEqual([]);
+    });
+  });
 });

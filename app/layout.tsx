@@ -18,7 +18,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             fonte em runtime, sem risco nenhum pro build. */}
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=Manrope:wght@400;500;600;700&display=swap"
         />
       </head>
       <body className="min-h-full flex flex-col">

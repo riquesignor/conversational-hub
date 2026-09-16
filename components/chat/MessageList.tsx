@@ -255,7 +255,7 @@ export function MessageList({
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-accent-text">
               {botName}
             </span>
-            <div className="flex items-center gap-1.5 rounded-lg border-l-2 border-accent bg-surface px-3.5 py-3">
+            <div className="flex items-center gap-1.5 rounded-[var(--radius-md)] rounded-bl-[6px] border border-divider bg-surface px-3.5 py-3">
               <span className="h-1.5 w-1.5 animate-dot-pulse rounded-full bg-accent-text" />
               <span
                 className="h-1.5 w-1.5 animate-dot-pulse rounded-full bg-accent-text"
@@ -271,7 +271,7 @@ export function MessageList({
 
       case "error":
         return (
-          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border-l-2 border-accent-strong bg-surface px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[var(--radius-md)] border border-divider bg-surface px-3 py-2.5">
             <p className="m-0 text-sm">Algo travou aqui. Tenta de novo?</p>
             <button
               onClick={onRetry}

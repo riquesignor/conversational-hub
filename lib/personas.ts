@@ -23,8 +23,8 @@ export interface Persona {
  */
 export const PERSONAS: Persona[] = [
   {
-    id: "zezinho",
-    label: "Zezinho",
+    id: "kado",
+    label: "Kado",
     tagline: "Pesquiso coisa, destrincho erro chato ou só bato um papo. Manda a boa.",
     tone:
       "Tom: descontraído e direto, como um amigo que manja de tecnologia batendo " +

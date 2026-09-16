@@ -2,8 +2,8 @@
 
 Chatbot com streaming de respostas, construído com Next.js 16 (App Router) e
 [Vercel AI SDK](https://ai-sdk.dev). Interface em sidebar com múltiplas
-conversas, inspirada em ChatGPT/Claude, com o sistema de design "Modernist"
-(flat, raio zero, divisores de 2px, acento vermelho-laranja). Login
+conversas, inspirada em ChatGPT/Claude, com o design "Kado" (tema escuro
+único, Newsreader nos títulos + Manrope no resto, acento dourado). Login
 obrigatório (Google ou e-mail/senha, via Firebase Auth) e persistência real
 por usuário no Firestore — cada conta só enxerga as próprias conversas.
 
@@ -56,8 +56,8 @@ app/
         └── logout/route.ts   # POST: apaga o cookie de sessão
 
 components/chat/
-├── icons.tsx                # Ícones SVG do design (Modernist) + LogoutIcon/GoogleIcon (não vieram do mock)
-├── Sidebar.tsx               # Lista de conversas + "Nova conversa" + Configurações + usuário/Sair
+├── icons.tsx                # Ícones SVG do design "Kado" + alguns desenhados à mão (kebab/pin/lixeira/Logout/Google)
+├── Sidebar.tsx               # Fixados/Recentes + renomear/fixar/excluir + "Novo" + Configurações + usuário/Sair
 ├── ChatHeader.tsx            # Cabeçalho do chat (avatar, nome, status online/digitando)
 ├── EmptyState.tsx            # Tela vazia (avatar grande, tagline da persona, chips sugeridos)
 ├── MessageList.tsx           # Lista de mensagens + indicador de digitação + banner de erro
@@ -237,21 +237,34 @@ servidor (`app/api/chat/route.ts`, defesa em profundidade).
 
 ## Interface
 
-A UI (`app/page.tsx` + `components/chat/`) segue o design "Zezinho Chatbot"
+A UI (`app/page.tsx` + `components/chat/`) segue o design "Kado Chatbot"
 feito no Claude Design, adaptado do protótipo estático pra componentes
 React de verdade conectados ao backend real do projeto:
 
 - **Sidebar com múltiplas conversas** — carregada do Firestore ao abrir a
-  página (`GET /api/threads`), não mais reiniciada a cada reload. "Nova
-  conversa" cria uma thread nova (um id gerado com `crypto.randomUUID()`);
-  clicar numa conversa já visitada troca na hora (cache local em memória),
-  numa conversa ainda não visitada busca o histórico primeiro
+  página (`GET /api/threads`), não mais reiniciada a cada reload. "Novo"
+  cria uma thread nova (um id gerado com `crypto.randomUUID()`); clicar numa
+  conversa já visitada troca na hora (cache local em memória), numa
+  conversa ainda não visitada busca o histórico primeiro
   (`GET /api/threads/[id]/messages`). Cada thread tem seu próprio `id`, que
   vira o `id` do `useChat` — a AI SDK descarta e recria o `Chat` interno
   automaticamente quando esse `id` muda, e o `id` viaja sozinho no corpo de
   cada requisição pro backend (ver "Conversas (threads) no backend"
   abaixo). Título e preview de cada conversa vêm do conteúdo real trocado
-  nela, nunca de dado inventado.
+  nela, nunca de dado inventado — a menos que o usuário renomeie (próximo
+  item).
+- **Renomear, fixar e excluir conversa** — menu "⋮" ao passar o mouse sobre
+  uma conversa na sidebar (`components/chat/Sidebar.tsx`), com as três
+  ações batendo em `PATCH`/`DELETE /api/threads/[threadId]`
+  (`lib/db/firebase-store.ts`: `renameThread`/`setThreadPinned`, e
+  `clearThread` reaproveitado pro excluir). Conversas fixadas (`pinned`)
+  aparecem numa seção "Fixados" separada, acima de "Recentes". Renomear é
+  otimista na UI e marca a conversa como tendo título "manual" — sem isso,
+  o título ao vivo derivado da primeira mensagem (`liveActiveSummary` em
+  `app/page.tsx`) sobrescreveria de volta o nome escolhido a cada novo
+  token de streaming. Excluir some com a conversa inteira (mensagens +
+  metadado), sem confirmação de navegador (`window.confirm`) — a
+  confirmação é um segundo passo dentro do próprio menu.
 - **Usuário logado + Sair** — rodapé da sidebar mostra avatar (foto do
   Google, quando existe) ou inicial, nome/e-mail, e um botão de logout.
 - **Blocos de código** — `lib/parse-message-content.ts` separa texto normal
@@ -276,16 +289,24 @@ React de verdade conectados ao backend real do projeto:
 
 O que existia no protótipo original e **não** foi portado, por decisão
 consciente:
-- O "seletor de agentes" (Zezinho/Pesquisador/Modo Turbo/Visão, alguns
+- O "seletor de agentes" (Kado/Pesquisador/Modo Turbo/Visão, alguns
   bloqueados até colar uma chave de API) era só decorativo no mock — não
   correspondia a nenhum backend real. Reaproveitei o mecanismo de UI (pill +
   menu suspenso) pro seletor de **Persona**, que é uma feature real.
 - O toggle "Vazio / Conversa" no cabeçalho existia só pra pré-visualizar os
   dois estados dentro da ferramenta de design. No app real esse estado já é
   automático (`messages.length === 0`), então foi removido.
-- A tela de login (`app/login/page.tsx`) **não veio do protótipo** — o mock
-  não tinha uma. Desenhada à mão nos mesmos tokens do design system
-  Modernist (`app/globals.css`) pra não destoar do resto do app.
+- O menu "Chaves de API"/"Agentes incluídos" da tela de configurações do
+  mock era decorativo, ligado ao mesmo seletor de agentes fake citado acima
+  — não veio pra `SettingsPanel.tsx`, que mostra dado real (persona atual,
+  provider de LLM/persistência ativos via `GET /api/status`).
+
+A tela de login (`app/login/page.tsx`) desta vez **veio do mock** (canvas
+"Kado Chatbot" tem telas de auth) — layout dividido, formulário à esquerda
+e foto à direita (`lg:` pra cima; só o formulário em telas estreitas). Só o
+botão "Continuar com Apple" do mock não foi portado — não existe provider
+Apple configurado no Firebase Auth deste projeto, e um botão que não faz
+nada seria decoração enganosa.
 
 ## Habilidades (tools)
 
@@ -328,7 +349,7 @@ escolher o tom das respostas sem trocar de modelo, de provider ou apagar o
 histórico da conversa — só o `system` prompt enviado ao `streamText` muda
 dali em diante:
 
-- **Zezinho** (padrão) — descontraído e direto, como um amigo que manja de
+- **Kado** (padrão) — descontraído e direto, como um amigo que manja de
   tecnologia
 - **Consultor** — formal e conciso, sem gírias, tom de atendimento
   corporativo

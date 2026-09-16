@@ -148,7 +148,7 @@ export function Composer({
   }
 
   return (
-    <div className="relative flex flex-none flex-col gap-2 border-t-2 border-divider bg-surface px-4 py-3 sm:px-6">
+    <div className="relative flex flex-none flex-col gap-2 border-t border-divider bg-bg-2 px-4 py-3.5 sm:px-6">
       {ATTACH_OPTIONS.map(({ kind }) => (
         <input
           key={kind}
@@ -162,13 +162,13 @@ export function Composer({
       ))}
 
       {attachOpen && (
-        <div className="absolute bottom-full left-4 z-10 mb-2 flex animate-pop-in flex-col overflow-hidden rounded-lg border border-divider bg-bg shadow-[var(--shadow-dropdown)] sm:left-6">
+        <div className="absolute bottom-full left-4 z-10 mb-2 flex animate-pop-in flex-col overflow-hidden rounded-[var(--radius-md)] border border-divider bg-surface-2 shadow-[var(--shadow-dropdown)] sm:left-6">
           {ATTACH_OPTIONS.map(({ label, kind, icon: Icon }) => (
             <button
               key={label}
               type="button"
               onClick={() => openPicker(kind)}
-              className="flex min-w-[160px] items-center gap-2.5 px-4 py-2.5 text-left text-[13px] font-semibold text-text hover:bg-surface-2"
+              className="flex min-w-[160px] items-center gap-2.5 px-4 py-2.5 text-left text-[13px] font-semibold text-text hover:bg-surface"
             >
               <Icon />
               {label}
@@ -184,7 +184,7 @@ export function Composer({
             return (
               <span
                 key={a.id}
-                className="flex max-w-[220px] items-center gap-1.5 rounded-md border border-divider bg-bg py-1 pl-2 pr-1 text-xs text-text"
+                className="flex max-w-[220px] items-center gap-1.5 rounded-md border border-divider bg-surface-2 py-1 pl-2 pr-1 text-xs text-text"
               >
                 {a.kind === "image" ? (
                   // eslint-disable-next-line @next/next/no-img-element -- preview transiente a partir de uma data URL local, não um asset otimizável pelo next/image.
@@ -219,7 +219,7 @@ export function Composer({
             setPersonaOpen(false);
           }}
           title="Anexar"
-          className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-md border border-divider text-text"
+          className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[var(--radius-sm)] border border-divider text-text"
         >
           <PlusIcon size={18} />
         </button>
@@ -228,12 +228,12 @@ export function Composer({
           onChange={(e) => onInputChange(e.target.value)}
           placeholder={`Escreve pra ${botName}...`}
           disabled={isLoading}
-          className="min-w-0 flex-1 rounded-md border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
+          className="min-w-0 flex-1 rounded-[var(--radius-lg)] border border-divider bg-input-bg px-4 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={!canSubmit}
-          className="flex flex-none items-center gap-1.5 rounded-md bg-accent-strong px-4 py-2.5 text-sm font-extrabold text-on-accent transition-[transform,background-color] active:scale-95 active:bg-accent disabled:opacity-40"
+          className="flex flex-none items-center gap-1.5 rounded-[var(--radius-sm)] bg-accent-strong px-4 py-2.5 text-sm font-bold text-on-accent transition-[transform,background-color] active:scale-95 active:bg-accent-deep disabled:opacity-40"
         >
           <SendIcon />
           Enviar
@@ -246,7 +246,7 @@ export function Composer({
             setPersonaOpen((o) => !o);
             setAttachOpen(false);
           }}
-          className="flex items-center gap-1.5 rounded-md border border-divider px-2.5 py-1.5 text-xs font-semibold text-muted"
+          className="flex items-center gap-1.5 rounded-full border border-divider px-3 py-1.5 text-xs font-semibold text-muted"
         >
           <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />
           {persona.label}
@@ -254,7 +254,7 @@ export function Composer({
         </button>
 
         {personaOpen && (
-          <div className="absolute bottom-full left-0 z-10 mb-2 flex w-72 animate-pop-in flex-col overflow-hidden rounded-lg border border-divider bg-bg shadow-[var(--shadow-dropdown)]">
+          <div className="absolute bottom-full left-0 z-10 mb-2 flex w-72 animate-pop-in flex-col overflow-hidden rounded-[var(--radius-md)] border border-divider bg-surface-2 shadow-[var(--shadow-dropdown)]">
             {PERSONAS.map((p) => (
               <button
                 key={p.id}
@@ -263,7 +263,7 @@ export function Composer({
                   setPersonaOpen(false);
                 }}
                 className={`flex flex-col items-start gap-0.5 px-3.5 py-2.5 text-left ${
-                  p.id === personaId ? "bg-accent-tint" : "hover:bg-surface-2"
+                  p.id === personaId ? "bg-accent-tint" : "hover:bg-surface"
                 }`}
               >
                 <span className="text-[13px] font-semibold text-text">{p.label}</span>

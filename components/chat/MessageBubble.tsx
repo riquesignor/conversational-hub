@@ -70,10 +70,10 @@ export function MessageBubble({ message, botName, showRedo, onEdit, onRedo }: Me
                 ) : seg.text.trim() ? (
                   <div
                     key={j}
-                    className={`whitespace-pre-wrap rounded-lg px-3 py-2.5 text-sm leading-relaxed ${
+                    className={`whitespace-pre-wrap rounded-[var(--radius-md)] px-3.5 py-2.5 text-sm leading-relaxed ${
                       isUser
-                        ? "bg-user-bubble-bg text-user-bubble-text"
-                        : "border-l-2 border-accent bg-surface text-text"
+                        ? "bg-user-bubble-bg text-user-bubble-text rounded-br-[6px]"
+                        : "border border-divider bg-surface text-text rounded-bl-[6px]"
                     }`}
                   >
                     {seg.text}
@@ -93,7 +93,7 @@ export function MessageBubble({ message, botName, showRedo, onEdit, onRedo }: Me
                 <img
                   src={part.url}
                   alt={part.filename ?? "Imagem enviada"}
-                  className="block max-h-64 max-w-full rounded-lg border border-divider object-contain"
+                  className="block max-h-64 max-w-full rounded-[var(--radius-md)] border border-divider object-contain"
                 />
               ) : (
                 <a

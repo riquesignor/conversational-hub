@@ -24,7 +24,7 @@ test("visitante sem sessão é redirecionado pra /login", async ({ page }) => {
 test("tela de login mostra os elementos principais", async ({ page }) => {
   await page.goto("/login");
 
-  await expect(page.getByRole("heading", { name: /Entrar no/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Resolva suas/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continuar com Google" })).toBeVisible();
   await expect(page.getByLabel("E-mail")).toBeVisible();
   await expect(page.getByLabel("Senha", { exact: true })).toBeVisible();

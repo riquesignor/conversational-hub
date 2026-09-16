@@ -17,7 +17,7 @@ import { GoogleIcon } from "@/components/chat/icons";
 
 type Mode = "signin" | "signup";
 
-const BOT_NAME = "Zezinho";
+const BOT_NAME = "Kado";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -104,103 +104,112 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-bg px-4 text-text">
-      <div className="w-full max-w-sm rounded-lg border border-divider bg-surface p-6 sm:p-8">
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-strong text-lg font-extrabold text-on-accent">
-            {BOT_NAME.charAt(0).toUpperCase()}
-          </div>
-          <h1 className="text-lg font-extrabold">
-            {mode === "signin" ? `Entrar no ${BOT_NAME}` : "Criar conta"}
+    <main className="flex min-h-dvh bg-bg text-text">
+      {/* Coluna do formulário — layout split com foto (coluna da direita)
+          vem direto do design "Kado Chatbot" (Claude Design); a tela em si
+          não veio do protótipo original (ver README, seção "Interface"),
+          só a moldura visual. */}
+      <div className="flex w-full flex-1 flex-col overflow-y-auto px-6 py-8 sm:px-10 lg:px-14 lg:py-10">
+        <div className="flex items-center gap-2.5">
+          <div className="h-7 w-7 flex-none rounded-[var(--radius-sm)] bg-accent" />
+          <span className="font-heading text-xl">{BOT_NAME}</span>
+        </div>
+
+        <div className="flex flex-1 flex-col items-start justify-center gap-4 py-10">
+          <h1 className="font-heading m-0 max-w-sm text-[28px] font-normal leading-tight sm:text-[32px]">
+            {mode === "signin" ? "Resolva suas belíssimas dúvidas" : "Crie sua conta"}
           </h1>
-          <p className="text-[12.5px] text-muted">
+          <p className="m-0 text-[13px] text-muted">
             {mode === "signin"
-              ? "Suas conversas ficam salvas na sua conta."
+              ? "Um pequeno companheiro pra ajudar."
               : "Leva menos de um minuto."}
           </p>
-        </div>
 
-        <button
-          type="button"
-          onClick={handleGoogleClick}
-          disabled={submitting}
-          className="flex w-full items-center justify-center gap-2.5 rounded-md border border-divider bg-bg px-4 py-2.5 text-[13px] font-semibold text-text disabled:opacity-50"
-        >
-          <GoogleIcon />
-          Continuar com Google
-        </button>
-
-        <div className="my-4 flex items-center gap-3">
-          <div className="h-px flex-1 bg-divider" />
-          <span className="text-[11px] uppercase tracking-wider text-muted">ou</span>
-          <div className="h-px flex-1 bg-divider" />
-        </div>
-
-        <form onSubmit={handleEmailSubmit} className="flex flex-col gap-2.5">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11.5px] font-semibold text-muted">E-mail</span>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={submitting}
-              className="rounded-md border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-[11.5px] font-semibold text-muted">Senha</span>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={submitting}
-              className="rounded-md border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
-            />
-          </label>
-
-          {mode === "signup" && (
-            <label className="flex flex-col gap-1">
-              <span className="text-[11.5px] font-semibold text-muted">Confirmar senha</span>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={submitting}
-                className="rounded-md border border-divider bg-input-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
-              />
-            </label>
-          )}
-
-          {mode === "signin" && (
+          <div className="mt-1.5 flex w-full max-w-sm flex-col items-stretch gap-2.5 rounded-2xl border border-divider p-5">
             <button
               type="button"
-              onClick={handleForgotPassword}
-              className="self-end text-[11.5px] font-semibold text-accent-text underline-offset-2 hover:underline"
+              onClick={handleGoogleClick}
+              disabled={submitting}
+              className="flex w-full items-center justify-center gap-2.5 rounded-md border border-divider bg-surface px-4 py-2.5 text-[13px] font-semibold text-text disabled:opacity-50"
             >
-              Esqueci minha senha
+              <GoogleIcon />
+              Continuar com Google
             </button>
-          )}
 
-          {error && <p className="text-[12.5px] font-semibold text-accent-text">{error}</p>}
-          {info && <p className="text-[12.5px] font-semibold text-muted">{info}</p>}
+            <div className="my-1 flex items-center gap-3">
+              <div className="h-px flex-1 bg-divider" />
+              <span className="text-[11px] uppercase tracking-wider text-muted">ou</span>
+              <div className="h-px flex-1 bg-divider" />
+            </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-1 rounded-md bg-accent-strong px-4 py-2.5 text-sm font-extrabold text-on-accent disabled:opacity-50"
-          >
-            {mode === "signin" ? "Entrar" : "Criar conta"}
-          </button>
-        </form>
+            <form onSubmit={handleEmailSubmit} className="flex flex-col gap-2.5">
+              <label className="mt-0.5 flex flex-col gap-1">
+                <span className="text-[12px] text-muted">E-mail</span>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={submitting}
+                  className="rounded-[var(--radius-sm)] border border-divider bg-surface-2 px-3 py-2.5 text-[13px] text-text outline-none focus:border-accent disabled:opacity-50"
+                />
+              </label>
 
-        <p className="mt-5 text-center text-[12.5px] text-muted">
-          {mode === "signin" ? "Ainda não tem conta?" : "Já tem conta?"}{" "}
+              <label className="flex flex-col gap-1">
+                <span className="text-[12px] text-muted">Senha</span>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={submitting}
+                  className="rounded-[var(--radius-sm)] border border-divider bg-surface-2 px-3 py-2.5 text-[13px] text-text outline-none focus:border-accent disabled:opacity-50"
+                />
+              </label>
+
+              {mode === "signup" && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-[12px] text-muted">Confirmar senha</span>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={submitting}
+                    className="rounded-[var(--radius-sm)] border border-divider bg-surface-2 px-3 py-2.5 text-[13px] text-text outline-none focus:border-accent disabled:opacity-50"
+                  />
+                </label>
+              )}
+
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="self-start text-[12.5px] text-muted hover:text-text"
+                >
+                  Esqueceu sua senha?
+                </button>
+              )}
+
+              {error && <p className="text-[12.5px] font-semibold text-accent-text">{error}</p>}
+              {info && <p className="text-[12.5px] font-semibold text-muted">{info}</p>}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="mt-1 rounded-[var(--radius-md)] bg-text px-4 py-2.5 text-[13px] font-bold text-bg disabled:opacity-50"
+              >
+                {mode === "signin" ? "Entrar" : "Criar conta"}
+              </button>
+            </form>
+
+            <p className="mt-1 text-center text-[11px] leading-relaxed text-muted">
+              Ao continuar, você declara estar de acordo com a política de privacidade.
+            </p>
+          </div>
+
           <button
             type="button"
             onClick={() => {
@@ -208,11 +217,29 @@ export default function LoginPage() {
               setError(null);
               setInfo(null);
             }}
-            className="font-semibold text-accent-text underline-offset-2 hover:underline"
+            className="text-[12.5px] text-muted hover:text-text"
           >
-            {mode === "signin" ? "Criar conta" : "Entrar"}
+            {mode === "signin" ? "Não tem conta? " : "Já tem conta? "}
+            <span className="font-semibold text-accent">
+              {mode === "signin" ? "Cadastre-se" : "Entrar"}
+            </span>
           </button>
-        </p>
+        </div>
+      </div>
+
+      {/* Coluna da foto — só em telas largas, mesma decisão de
+          "sem imagem decorativa" que o e-mail de verificação/confirmação já
+          seguia: em telas pequenas o formulário é o que importa. */}
+      <div className="hidden flex-1 p-10 pl-0 lg:flex">
+        <div
+          className="h-full w-full flex-1 rounded-[var(--radius-lg)] bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url(https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?w=1200&q=80)",
+          }}
+          role="img"
+          aria-label="Paisagem"
+        />
       </div>
     </main>
   );

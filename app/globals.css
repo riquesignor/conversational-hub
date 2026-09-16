@@ -1,67 +1,62 @@
 @import "tailwindcss";
 
 /*
- * Modernist — sistema de design do chatbot (importado do Claude Design).
- * Arquitetural, divisores fortes de 2px, um único acento (vermelho-laranja)
- * sobre base neutra. Tokens abaixo espelham styles.css do design system;
- * ajuste aqui pra manter tudo em um lugar só.
+ * Kado — sistema de design do chatbot (importado do Claude Design, canvas
+ * "Kado Chatbot", ex-"Zezinho Chatbot" — ver README, seção "Interface").
+ * Tema único, escuro: o design entregue não tinha variante clara, então
+ * este arquivo fixa os tokens direto em :root (sem
+ * `@media (prefers-color-scheme: dark)`) — desvio deliberado do sistema
+ * anterior ("Modernist"), que alternava claro/escuro automaticamente.
  *
- * Desvio deliberado do design system importado: o `readme.md`/`styles.css`
- * originais fixam --radius-sm/md/lg em 0 ("Do not round a corner
- * anywhere"). A pedido explícito, esse ponto foi substituído por uma escala
- * de raio real abaixo — resto do sistema (cor, tipografia, divisores,
- * layout) permanece igual ao token-a-token original.
+ * Como no sistema anterior: raio de canto é uma escala real (8/14/24px),
+ * não os 0px do design system genérico original — mesmo desvio já feito
+ * antes, mantido aqui.
  */
 :root {
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 24px;
 
-  --bg: #f3f2f2;
-  --surface: #eae9e9;
-  --surface-2: #e2dfdf;
-  --text: #201e1d;
-  --muted: rgba(32, 30, 29, 0.55);
-  --divider: rgba(32, 30, 29, 0.4);
-  --accent: #ec3013;
-  --accent-text: #ae1800;
-  --accent-strong: #ae1800;
-  --on-accent: #fff2ef;
-  --input-bg: #ffffff;
+  --bg: #131313;
+  /* Fundo dos "chromes" (sidebar, cabeçalho do chat, barra do composer) —
+     um degrau mais claro que --bg, pra dar profundidade sem precisar de
+     borda em toda superfície. */
+  --bg-2: #161616;
+  --surface: #1f1f1f;
+  --surface-2: #272625;
+  --text: #f2f0ec;
+  --muted: rgba(242, 240, 236, 0.55);
+  --divider: rgba(255, 255, 255, 0.14);
+  --accent: #d9a15b;
+  /* Tom mais escuro do acento — estado pressed (ver active:bg-accent-deep
+     nos botões de enviar). */
+  --accent-deep: #b8823f;
+  /* Neste tema o acento já tem contraste suficiente como texto sobre o
+     fundo escuro — ao contrário do sistema anterior (acento vermelho sobre
+     fundo claro), não precisa de uma variante "profunda" separada só pra
+     texto. */
+  --accent-text: #d9a15b;
+  --accent-strong: #d9a15b;
+  /* Texto escuro sobre preenchimento sólido de acento (bolha do usuário,
+     botão de enviar, avatar) — o acento aqui é um dourado claro, não um tom
+     escuro como no sistema anterior, então o texto em cima precisa ser
+     escuro, não claro. */
+  --on-accent: #1a1408;
+  --input-bg: #272625;
 
-  /* Tint muito claro do acento — fundo de item selecionado (sidebar, menu
-     de persona). Separado de --on-accent (que é texto sobre fundo sólido de
-     acento, não muda com o tema) porque este precisa inverter no dark. */
-  --accent-tint: #fff2ef;
+  /* Tint neutro (não mais colorido pelo acento) — fundo de item
+     selecionado (conversa ativa na sidebar, persona ativa no menu). */
+  --accent-tint: rgba(255, 255, 255, 0.06);
 
-  /* Bloco de código e bolha do usuário: tons de tinta fixos (não variam com
-     o tema — convenção comum de blocos de código/bolhas escuras, igual
-     GitHub/editores). Vêm da rampa neutra do design system importado. */
-  --code-bg: #2d2b2b;
-  --code-text: #f8f4f4;
-  --code-border: #605d5d;
-  --code-lang: #bab6b6;
-  --code-copy-text: #eae7e7;
-  --user-bubble-bg: #444141;
-  --user-bubble-text: #fff2ef;
+  --code-bg: #0e0e0e;
+  --code-text: #e7e5e2;
+  --code-border: rgba(255, 255, 255, 0.14);
+  --code-lang: rgba(242, 240, 236, 0.55);
+  --code-copy-text: rgba(242, 240, 236, 0.55);
+  --user-bubble-bg: #d9a15b;
+  --user-bubble-text: #1a1408;
 
-  --shadow-dropdown: 0 3px 10px rgba(45, 43, 43, 0.16);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #171514;
-    --surface: #232020;
-    --surface-2: #2d2a2a;
-    --text: #f3f1f0;
-    --muted: rgba(243, 241, 240, 0.6);
-    --divider: rgba(243, 241, 240, 0.18);
-    --accent-text: #ff9783;
-    --input-bg: #232020;
-
-    --accent-tint: rgba(255, 151, 131, 0.14);
-    --shadow-dropdown: 0 3px 10px rgba(0, 0, 0, 0.45);
-  }
+  --shadow-dropdown: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
 @theme inline {
@@ -70,12 +65,14 @@
   --radius-lg: var(--radius-lg);
 
   --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-divider: var(--divider);
   --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
   --color-accent-text: var(--accent-text);
   --color-accent-strong: var(--accent-strong);
   --color-on-accent: var(--on-accent);
@@ -89,7 +86,10 @@
   --color-user-bubble-bg: var(--user-bubble-bg);
   --color-user-bubble-text: var(--user-bubble-text);
 
-  --font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+  /* Newsreader (serif) pra títulos/wordmark, Manrope (sans) pro resto —
+     ver o <link> do Google Fonts em app/layout.tsx. */
+  --font-heading: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-sans: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
   --font-mono:
     ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
@@ -162,4 +162,3 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
 }
-

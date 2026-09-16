@@ -21,7 +21,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { Composer, type PendingAttachment } from "@/components/chat/Composer";
 import { SettingsPanel } from "@/components/chat/SettingsPanel";
 
-const BOT_NAME = "Zezinho";
+const BOT_NAME = "Kado";
 
 const SUGGESTED_CHIPS = [
   "Pesquisa algo rápido pra mim",
@@ -45,7 +45,12 @@ function firstAndLastText(messages: UIMessage[]): { first?: string; last?: strin
 }
 
 function threadMetaToSummary(meta: ThreadMeta): ThreadSummary {
-  return { id: meta.id, title: meta.title, snippet: meta.lastMessagePreview ?? "" };
+  return {
+    id: meta.id,
+    title: meta.title,
+    snippet: meta.lastMessagePreview ?? "",
+    pinned: meta.pinned ?? false,
+  };
 }
 
 function storedToUIMessages(stored: StoredMessage[]): UIMessage[] {
@@ -83,8 +88,18 @@ export default function ChatPage() {
   const initialThreadId = useId();
   const [activeThreadId, setActiveThreadId] = useState(initialThreadId);
   const [threads, setThreads] = useState<ThreadSummary[]>([
-    { id: initialThreadId, title: "Nova conversa", snippet: "" },
+    { id: initialThreadId, title: "Nova conversa", snippet: "", pinned: false },
   ]);
+  // Threads renomeadas manualmente pelo usuário (ver handleRenameThread) —
+  // impede que o título "ao vivo" derivado da primeira mensagem
+  // (liveActiveSummary abaixo) sobrescreva um nome escolhido de propósito.
+  // Limitação aceita: renomear uma conversa ainda vazia (sem nenhuma
+  // mensagem) e só DEPOIS mandar a primeira mensagem perde o rename — o
+  // touchThread que cria a thread (app/api/chat/route.ts) usa o texto dessa
+  // primeira mensagem como título por padrão, e nenhum id novo tem como
+  // "avisar" esse caminho de criação. Renomear uma conversa que já tem
+  // histórico (o caso comum) funciona sem essa ressalva.
+  const [customTitleIds, setCustomTitleIds] = useState<Set<string>>(new Set());
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
 
@@ -236,13 +251,16 @@ export default function ChatPage() {
     return { title: truncate(first, 40), snippet: truncate(last ?? first, 48) };
   }, [messages]);
 
-  const displayThreads = useMemo(
-    () =>
-      liveActiveSummary
-        ? threads.map((t) => (t.id === activeThreadId ? { ...t, ...liveActiveSummary } : t))
-        : threads,
-    [threads, activeThreadId, liveActiveSummary],
-  );
+  const displayThreads = useMemo(() => {
+    if (!liveActiveSummary) return threads;
+    return threads.map((t) => {
+      if (t.id !== activeThreadId) return t;
+      // snippet sempre acompanha a conversa ao vivo; título só quando o
+      // usuário não escolheu um nome de propósito (ver customTitleIds).
+      const titlePatch = customTitleIds.has(t.id) ? {} : { title: liveActiveSummary.title };
+      return { ...t, ...titlePatch, snippet: liveActiveSummary.snippet };
+    });
+  }, [threads, activeThreadId, liveActiveSummary, customTitleIds]);
 
   function handleSend(attachments: PendingAttachment[]) {
     const text = input.trim();
@@ -270,10 +288,70 @@ export default function ChatPage() {
     if (isLoading) return;
     const id = crypto.randomUUID();
     threadMessagesRef.current[id] = [];
-    setThreads((prev) => [{ id, title: "Nova conversa", snippet: "" }, ...prev]);
+    setThreads((prev) => [{ id, title: "Nova conversa", snippet: "", pinned: false }, ...prev]);
     setActiveThreadId(id);
     setInput("");
     setSettingsOpen(false);
+  }
+
+  // Otimista (atualiza a UI antes da resposta do servidor, igual ao resto
+  // dos handlers desta página) — marca em customTitleIds pra o título ao
+  // vivo (liveActiveSummary) não sobrescrever de volta caso esta seja a
+  // conversa ativa (ver comentário em customTitleIds acima).
+  function handleRenameThread(id: string, title: string) {
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
+    setCustomTitleIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    fetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    }).catch((err) => console.error("[page] falha ao renomear conversa:", err));
+  }
+
+  function handleTogglePin(id: string, pinned: boolean) {
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, pinned } : t)));
+    fetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned }),
+    }).catch((err) => console.error("[page] falha ao fixar/desafixar conversa:", err));
+  }
+
+  function handleDeleteThread(id: string) {
+    const remaining = threads.filter((t) => t.id !== id);
+    setThreads(remaining);
+    delete threadMessagesRef.current[id];
+    setCustomTitleIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setMessagesCursors((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+
+    // A conversa excluída era a que estava aberta — troca pra outra já
+    // existente ou, sem nenhuma sobrando, abre uma nova em branco (mesmo
+    // fallback do estado inicial da página).
+    if (id === activeThreadId) {
+      if (remaining.length > 0) {
+        void handleSelectThread(remaining[0]!.id);
+      } else {
+        handleNewThread();
+      }
+    }
+
+    fetch(`/api/threads/${id}`, { method: "DELETE" }).catch((err) =>
+      console.error("[page] falha ao excluir conversa:", err),
+    );
   }
 
   const handleSelectThread = useCallback(
@@ -373,6 +451,9 @@ export default function ChatPage() {
         onNewThread={handleNewThread}
         onOpenSettings={() => setSettingsOpen(true)}
         onLogout={handleLogout}
+        onRenameThread={handleRenameThread}
+        onTogglePin={handleTogglePin}
+        onDeleteThread={handleDeleteThread}
         userLabel={user.displayName || user.email || "Minha conta"}
         userPhotoURL={user.photoURL}
         disabled={isLoading || !!loadingThreadId}
@@ -386,7 +467,12 @@ export default function ChatPage() {
           <SettingsPanel botName={BOT_NAME} persona={persona} onBack={() => setSettingsOpen(false)} />
         ) : (
           <>
-            <ChatHeader botName={BOT_NAME} isLoading={isLoading} />
+            <ChatHeader
+              botName={BOT_NAME}
+              isLoading={isLoading}
+              onNewThread={handleNewThread}
+              disabled={isLoading || !!loadingThreadId}
+            />
             <div ref={setMessagesScrollEl} className="flex flex-1 flex-col overflow-y-auto">
               {!threadsLoaded ? (
                 <div className="flex flex-1 items-center justify-center text-sm text-muted">

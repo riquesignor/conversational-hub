@@ -181,6 +181,31 @@ export class FirebaseConversationStore implements ConversationStore {
     await ref.set({ ...rest, updatedAt: now }, { merge: true });
   }
 
+  async renameThread(uid: string, threadId: string, title: string): Promise<void> {
+    const ref = this.threadsCol(uid).doc(threadId);
+    const snap = await ref.get();
+    if (!snap.exists) return; // sem enumeração — mesma postura do resto da classe.
+
+    const trimmed = title.trim();
+    await ref.set(
+      { title: trimmed || "Nova conversa", updatedAt: Date.now() },
+      { merge: true },
+    );
+  }
+
+  async setThreadPinned(uid: string, threadId: string, pinned: boolean): Promise<void> {
+    const ref = this.threadsCol(uid).doc(threadId);
+    const snap = await ref.get();
+    if (!snap.exists) return;
+
+    // `pinned: false` explícito, não omitido — ao contrário de personaId/
+    // lastMessagePreview (que nascem ausentes e não têm "estado negativo"
+    // pra representar), aqui false É um valor real: "essa thread já foi
+    // desfixada", distinto de "nunca foi fixada". merge:true só troca este
+    // campo, sem mexer no resto do doc.
+    await ref.set({ pinned, updatedAt: Date.now() }, { merge: true });
+  }
+
   async listImages(uid: string): Promise<StoredImage[]> {
     const snap = await this.userDoc(uid).collection("images").orderBy("createdAt", "desc").get();
     return snap.docs.map((d) => d.data() as StoredImage);
