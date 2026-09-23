@@ -11,7 +11,7 @@ Se você encontrar uma vulnerabilidade de segurança neste projeto (bypass de
 autenticação, vazamento de dados entre usuários, exposição de segredo,
 injeção, etc.), **não abra uma issue pública**. Reporte de forma privada:
 
-- E-mail: nicolaszcg@gmail.com
+- E-mail: rique.signor@gmail.com
 - Inclua: passos para reproduzir, impacto estimado, e (se possível) uma
   sugestão de correção.
 
