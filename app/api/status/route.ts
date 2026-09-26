@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   return Response.json({
-    llmProvider: process.env.LLM_PROVIDER || "google",
+    llmProvider: process.env.LLM_PROVIDER || "nvidia",
     dbProvider: process.env.DB_PROVIDER || "memory",
   });
 }

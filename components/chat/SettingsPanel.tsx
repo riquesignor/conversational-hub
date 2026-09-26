@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { PERSONAS, type Persona } from "@/lib/personas";
+import { NIM_MODELS, type NimModel } from "@/lib/models";
 import { BackIcon } from "./icons";
 
 interface SettingsPanelProps {
   botName: string;
   persona: Persona;
+  model: NimModel;
   onBack: () => void;
 }
 
@@ -15,7 +17,7 @@ interface StatusInfo {
   dbProvider: string;
 }
 
-export function SettingsPanel({ botName, persona, onBack }: SettingsPanelProps) {
+export function SettingsPanel({ botName, persona, model, onBack }: SettingsPanelProps) {
   const [status, setStatus] = useState<StatusInfo | null>(null);
 
   useEffect(() => {
@@ -76,6 +78,36 @@ export function SettingsPanel({ botName, persona, onBack }: SettingsPanelProps) 
               <div key={p.id} className="flex flex-col gap-0.5 border-l border-divider py-1 pl-3">
                 <span className="text-[13px] font-semibold">{p.label}</span>
                 <span className="text-[11.5px] text-muted">{p.tagline}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="h-px bg-divider" />
+
+        <section className="flex flex-col gap-2.5 py-4">
+          <h3 className="font-heading m-0 text-[17px] font-normal">Modelo atual</h3>
+          <div className="flex items-center gap-2.5">
+            <span className="w-[150px] flex-none text-[12.5px] font-semibold text-muted">Modelo</span>
+            <span className="text-[13.5px]">{model.label}</span>
+          </div>
+          <p className="m-0 text-[12.5px] text-muted">{model.description}</p>
+        </section>
+
+        <div className="h-px bg-divider" />
+
+        <section className="flex flex-col gap-2.5 py-4">
+          <h3 className="font-heading m-0 text-[17px] font-normal">Modelos disponíveis (NVIDIA)</h3>
+          <p className="m-0 text-[12.5px] text-muted">
+            Troque o modelo que responde pelo seletor na barra de mensagem — dá pra trocar a
+            qualquer momento, sem perder o histórico da conversa. Só tem efeito quando o
+            provider ativo (abaixo) é &quot;nvidia&quot;.
+          </p>
+          <div className="mt-1 flex flex-col gap-2">
+            {NIM_MODELS.map((m) => (
+              <div key={m.id} className="flex flex-col gap-0.5 border-l border-divider py-1 pl-3">
+                <span className="text-[13px] font-semibold">{m.label}</span>
+                <span className="text-[11.5px] text-muted">{m.description}</span>
               </div>
             ))}
           </div>

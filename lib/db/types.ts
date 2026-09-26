@@ -29,6 +29,10 @@ export interface ThreadMeta {
   id: string;
   title: string;
   personaId?: string;
+  /** Só relevante quando o provider ativo é "nvidia" (ver lib/models.ts) —
+   * ausente/undefined quando outro provider está ativo, mesma convenção de
+   * personaId acima. */
+  modelId?: string;
   /** Prévia da última mensagem (qualquer papel) — pro rótulo na sidebar. */
   lastMessagePreview?: string;
   /** Fixada no topo da sidebar (seção "Fixados") — ver renameThread/

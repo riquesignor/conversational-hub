@@ -12,8 +12,14 @@ por usuário no Firestore — cada conta só enxerga as próprias conversas.
 - **Next.js 16** (App Router, TypeScript, Tailwind CSS v4)
 - **Vercel AI SDK** (`ai` + `@ai-sdk/react`) — streaming de tokens e o hook
   `useChat`
-- **Google Gemini** (`gemini-3.5-flash` por padrão) via `@ai-sdk/google` —
-  provider default porque o free tier não exige cartão de crédito
+- **NVIDIA NIM** (`nvidia/nemotron-3-super-120b-a12b` por padrão) via
+  `@ai-sdk/openai` apontado pro endpoint da NVIDIA (API compatível com a da
+  OpenAI) — provider default: catálogo grátis com dezenas de modelos
+  (Nemotron, DeepSeek, Mistral...) em build.nvidia.com, sem cartão de
+  crédito. Seletor de modelo por conversa na barra de mensagem — catálogo
+  curado em `lib/models.ts`
+- **Google Gemini** (`gemini-3.5-flash`) via `@ai-sdk/google` — implementado
+  como alternativa (free tier também sem cartão)
 - **OpenAI** (`gpt-4o-mini`) via `@ai-sdk/openai` — implementado como
   alternativa, mas desde maio/2026 a OpenAI exige cartão cadastrado mesmo
   para o crédito de teste
@@ -93,9 +99,9 @@ lib/
 ```
 
 A escolha de provider de LLM continua centralizada em `lib/llm/provider.ts` e
-controlada pela variável `LLM_PROVIDER` (`google` ou `openai`) — isso não
-mudou nesta rodada. Adicionar outro provider (ex.: Groq) é instalar o pacote
-`@ai-sdk/<provider>` e adicionar um `case` nesse arquivo.
+controlada pela variável `LLM_PROVIDER` (`nvidia`, `google` ou `openai`) —
+isso não mudou nesta rodada. Adicionar outro provider (ex.: Groq) é instalar
+o pacote `@ai-sdk/<provider>` e adicionar um `case` nesse arquivo.
 
 ## Autenticação e Firestore
 
@@ -399,11 +405,11 @@ sempre atualizada com o texto mais recente.
 
 ## Rodando localmente
 
-Pré-requisitos: Node.js 18.18+ (recomendado 20+), uma chave de API do
-Google AI Studio (gratuita, sem cartão) **e** um projeto Firebase com
-Authentication + Firestore habilitados (ver "Autenticação e Firestore" →
-"Configurando um projeto Firebase do zero" — login é obrigatório agora, não
-dá pra rodar o chat sem isso).
+Pré-requisitos: Node.js 18.18+ (recomendado 20+), uma chave de API da
+NVIDIA (gratuita, sem cartão) **e** um projeto Firebase com Authentication +
+Firestore habilitados (ver "Autenticação e Firestore" → "Configurando um
+projeto Firebase do zero" — login é obrigatório agora, não dá pra rodar o
+chat sem isso).
 
 1. Instale as dependências:
 
@@ -417,11 +423,12 @@ dá pra rodar o chat sem isso).
    cp .env.example .env.local
    ```
 
-3. Gere uma chave em https://aistudio.google.com/apikey e cole em
-   `.env.local`:
+3. Crie uma conta grátis em https://build.nvidia.com, abra qualquer modelo
+   do catálogo e clique em "Get API Key" pra gerar uma chave (formato
+   `nvapi-...`). Cole em `.env.local`:
 
    ```
-   GOOGLE_GENERATIVE_AI_API_KEY=...
+   NVIDIA_API_KEY=nvapi-...
    ```
 
 4. Preencha as sete variáveis `NEXT_PUBLIC_FIREBASE_*` e
@@ -438,9 +445,16 @@ dá pra rodar o chat sem isso).
 6. Abra http://localhost:3000 — você cai direto em `/login` (ver
    `middleware.ts`). Crie uma conta ou entre com Google pra chegar no chat.
 
-### Usando OpenAI em vez de Gemini
+### Usando Gemini ou OpenAI em vez de NVIDIA
 
-Defina no `.env.local`:
+Defina no `.env.local` (Gemini):
+
+```
+LLM_PROVIDER=google
+GOOGLE_GENERATIVE_AI_API_KEY=...
+```
+
+Ou (OpenAI):
 
 ```
 LLM_PROVIDER=openai
@@ -455,12 +469,13 @@ gratuita de fato — use só se decidir pagar.
 
 1. Suba o projeto para um repositório no GitHub.
 2. Em https://vercel.com, "Add New Project" → importe o repositório.
-3. Em **Environment Variables**, adicione `GOOGLE_GENERATIVE_AI_API_KEY`
-   (ou, se for usar OpenAI, `LLM_PROVIDER=openai` + `OPENAI_API_KEY`) **e**
-   as sete variáveis do Firebase (client + admin — ver "Autenticação e
-   Firestore"). Pra `FIREBASE_PRIVATE_KEY`, cole a chave com os `\n`
-   literais como estão no JSON baixado do Console — a Vercel escapa quebra
-   de linha em variável de texto, e `lib/firebase/admin.ts` já desfaz isso.
+3. Em **Environment Variables**, adicione `NVIDIA_API_KEY` (ou, se for usar
+   Gemini, `LLM_PROVIDER=google` + `GOOGLE_GENERATIVE_AI_API_KEY`; se for
+   usar OpenAI, `LLM_PROVIDER=openai` + `OPENAI_API_KEY`) **e** as sete
+   variáveis do Firebase (client + admin — ver "Autenticação e Firestore").
+   Pra `FIREBASE_PRIVATE_KEY`, cole a chave com os `\n` literais como estão
+   no JSON baixado do Console — a Vercel escapa quebra de linha em variável
+   de texto, e `lib/firebase/admin.ts` já desfaz isso.
 4. No Firebase Console, **Authentication → Settings → Authorized domains**,
    adicione o domínio da Vercel (`seu-projeto.vercel.app`) — sem isso o
    Google Sign-In falha em produção com "domínio não autorizado".
@@ -500,7 +515,7 @@ do passo 4).
 - **`lookup_pokemon`/`lookup_cep` dependem de rede externa liberada** —
   funcionam normal na Vercel; só não dá pra testar dentro de sandboxes com
   egress restrito (mesma categoria de limitação que já existia com a API do
-  Gemini nesses ambientes).
+  provider de LLM ativo nesses ambientes).
 
 ## Próximos passos sugeridos (se quiser evoluir o projeto)
 
@@ -509,9 +524,9 @@ do passo 4).
   aberta — ver "Limitações conhecidas").
 - Enforçar e-mail verificado antes de liberar o chat (cadastro por
   e-mail/senha).
-- Adicionar um segundo provider (Groq também tem free tier sem cartão e é a
-  adição mais barata) para demonstrar a abstração funcionando de fato —
-  exige `npm install @ai-sdk/groq` e uma chave de API do Groq.
+- Adicionar mais um provider (Groq também tem free tier sem cartão e é a
+  adição mais barata) — a abstração em `lib/llm/provider.ts` já suporta
+  NVIDIA, Gemini e OpenAI; Groq seria só mais um `case`.
 - Testes: pelo menos um teste de integração da rota `/api/chat` mockando o
   provider e o Admin SDK — exige escolher e instalar um test runner (ex.:
   `vitest`) como devDependency, hoje o projeto não tem nenhum.

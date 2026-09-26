@@ -166,6 +166,7 @@ export class FirebaseConversationStore implements ConversationStore {
         createdAt: now,
         updatedAt: now,
         ...(patch.personaId !== undefined ? { personaId: patch.personaId } : {}),
+        ...(patch.modelId !== undefined ? { modelId: patch.modelId } : {}),
         ...(patch.lastMessagePreview !== undefined
           ? { lastMessagePreview: patch.lastMessagePreview }
           : {}),

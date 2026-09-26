@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { PERSONAS } from "@/lib/personas";
+import { NIM_MODELS } from "@/lib/models";
 import {
   ATTACHMENT_KINDS,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -35,6 +36,8 @@ interface ComposerProps {
   isLoading: boolean;
   personaId: string;
   onPersonaChange: (id: string) => void;
+  modelId: string;
+  onModelChange: (id: string) => void;
 }
 
 const ATTACH_OPTIONS: Array<{ label: string; kind: AttachmentKind; icon: typeof ImageIcon }> = [
@@ -66,12 +69,16 @@ export function Composer({
   isLoading,
   personaId,
   onPersonaChange,
+  modelId,
+  onModelChange,
 }: ComposerProps) {
   const [attachOpen, setAttachOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
   const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
+  const model = NIM_MODELS.find((m) => m.id === modelId) ?? NIM_MODELS[0]!;
 
   // Um <input type="file"> escondido por tipo (não um só reaproveitado) —
   // cada um já nasce com o `accept` certo pro seletor de arquivo do SO
@@ -217,6 +224,7 @@ export function Composer({
           onClick={() => {
             setAttachOpen((o) => !o);
             setPersonaOpen(false);
+            setModelOpen(false);
           }}
           title="Anexar"
           className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[var(--radius-sm)] border border-divider text-text"
@@ -240,38 +248,76 @@ export function Composer({
         </button>
       </form>
 
-      <div className="relative mx-auto w-full max-w-3xl">
-        <button
-          onClick={() => {
-            setPersonaOpen((o) => !o);
-            setAttachOpen(false);
-          }}
-          className="flex items-center gap-1.5 rounded-full border border-divider px-3 py-1.5 text-xs font-semibold text-muted"
-        >
-          <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />
-          {persona.label}
-          <ChevronDownIcon />
-        </button>
+      <div className="mx-auto flex w-full max-w-3xl items-start gap-2">
+        <div className="relative">
+          <button
+            onClick={() => {
+              setPersonaOpen((o) => !o);
+              setAttachOpen(false);
+              setModelOpen(false);
+            }}
+            className="flex items-center gap-1.5 rounded-full border border-divider px-3 py-1.5 text-xs font-semibold text-muted"
+          >
+            <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />
+            {persona.label}
+            <ChevronDownIcon />
+          </button>
 
-        {personaOpen && (
-          <div className="absolute bottom-full left-0 z-10 mb-2 flex w-72 animate-pop-in flex-col overflow-hidden rounded-[var(--radius-md)] border border-divider bg-surface-2 shadow-[var(--shadow-dropdown)]">
-            {PERSONAS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => {
-                  onPersonaChange(p.id);
-                  setPersonaOpen(false);
-                }}
-                className={`flex flex-col items-start gap-0.5 px-3.5 py-2.5 text-left ${
-                  p.id === personaId ? "bg-accent-tint" : "hover:bg-surface"
-                }`}
-              >
-                <span className="text-[13px] font-semibold text-text">{p.label}</span>
-                <span className="text-[11px] text-muted">{p.tagline}</span>
-              </button>
-            ))}
-          </div>
-        )}
+          {personaOpen && (
+            <div className="absolute bottom-full left-0 z-10 mb-2 flex w-72 animate-pop-in flex-col overflow-hidden rounded-[var(--radius-md)] border border-divider bg-surface-2 shadow-[var(--shadow-dropdown)]">
+              {PERSONAS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    onPersonaChange(p.id);
+                    setPersonaOpen(false);
+                  }}
+                  className={`flex flex-col items-start gap-0.5 px-3.5 py-2.5 text-left ${
+                    p.id === personaId ? "bg-accent-tint" : "hover:bg-surface"
+                  }`}
+                >
+                  <span className="text-[13px] font-semibold text-text">{p.label}</span>
+                  <span className="text-[11px] text-muted">{p.tagline}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button
+            onClick={() => {
+              setModelOpen((o) => !o);
+              setAttachOpen(false);
+              setPersonaOpen(false);
+            }}
+            className="flex items-center gap-1.5 rounded-full border border-divider px-3 py-1.5 text-xs font-semibold text-muted"
+          >
+            <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />
+            {model.label}
+            <ChevronDownIcon />
+          </button>
+
+          {modelOpen && (
+            <div className="absolute bottom-full left-0 z-10 mb-2 flex w-72 animate-pop-in flex-col overflow-hidden rounded-[var(--radius-md)] border border-divider bg-surface-2 shadow-[var(--shadow-dropdown)]">
+              {NIM_MODELS.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    onModelChange(m.id);
+                    setModelOpen(false);
+                  }}
+                  className={`flex flex-col items-start gap-0.5 px-3.5 py-2.5 text-left ${
+                    m.id === modelId ? "bg-accent-tint" : "hover:bg-surface"
+                  }`}
+                >
+                  <span className="text-[13px] font-semibold text-text">{m.label}</span>
+                  <span className="text-[11px] text-muted">{m.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getTools } from "@/lib/skills";
 import { getStore } from "@/lib/db";
 import { getPersona } from "@/lib/personas";
+import { getNimModel } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth/session";
 import { truncate } from "@/lib/format";
 import { MAX_ATTACHMENTS_PER_MESSAGE, validateAttachment } from "@/lib/attachments/constraints";
@@ -95,8 +96,10 @@ export async function POST(req: Request) {
   const {
     messages,
     personaId,
+    modelId,
     id: threadId,
-  }: { messages: UIMessage[]; personaId?: string; id?: string } = await req.json();
+  }: { messages: UIMessage[]; personaId?: string; modelId?: string; id?: string } =
+    await req.json();
 
   const effectiveThreadId = threadId || randomUUID();
   const store = getStore();
@@ -163,13 +166,16 @@ export async function POST(req: Request) {
       .touchThread(user.uid, effectiveThreadId, {
         ...(userText ? { title: truncate(userText, 40) } : {}),
         personaId,
+        modelId,
         lastMessagePreview: truncate(userText || "📎 Anexo", 48),
       })
       .catch((err) => console.error("[api/chat] falha ao atualizar metadados da thread:", err));
   }
 
   const result = streamText({
-    model: getModel(),
+    // modelId escolhido no seletor da UI (lib/models.ts) — só tem efeito de
+    // fato quando LLM_PROVIDER=nvidia (ver comentário em getModel()).
+    model: getModel(getNimModel(modelId).modelString),
     system: buildSystemPrompt(personaId),
     messages: await convertToModelMessages(messages),
     // Tools próprias (lib/skills/) + busca nativa do provider ativo (ver

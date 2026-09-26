@@ -6,6 +6,7 @@ import type { FileUIPart, UIMessage } from "ai";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEFAULT_PERSONA_ID, PERSONAS } from "@/lib/personas";
+import { DEFAULT_MODEL_ID, NIM_MODELS } from "@/lib/models";
 import { truncate } from "@/lib/format";
 import { useAuth } from "@/lib/auth/use-auth";
 import { logout } from "@/lib/auth/client-actions";
@@ -125,6 +126,7 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const [personaId, setPersonaId] = useState(DEFAULT_PERSONA_ID);
+  const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Div que efetivamente rola a lista de mensagens — repassada pro
@@ -137,6 +139,7 @@ export default function ChatPage() {
   const [messagesScrollEl, setMessagesScrollEl] = useState<HTMLDivElement | null>(null);
 
   const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
+  const model = NIM_MODELS.find((m) => m.id === modelId) ?? NIM_MODELS[0];
 
   // Defesa em profundidade: middleware.ts já redireciona quem navega pra
   // "/" sem cookie de sessão, mas isto cobre quem já está com a aba aberta
@@ -201,7 +204,7 @@ export default function ChatPage() {
     id: activeThreadId,
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: { personaId },
+      body: { personaId, modelId },
     }),
     // Sem throttle, cada token do streaming (SSE, chega vários por segundo)
     // dispara um re-render de toda a árvore do chat — mensagens, sidebar
@@ -464,7 +467,12 @@ export default function ChatPage() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {settingsOpen ? (
-          <SettingsPanel botName={BOT_NAME} persona={persona} onBack={() => setSettingsOpen(false)} />
+          <SettingsPanel
+            botName={BOT_NAME}
+            persona={persona}
+            model={model}
+            onBack={() => setSettingsOpen(false)}
+          />
         ) : (
           <>
             <ChatHeader
@@ -510,6 +518,8 @@ export default function ChatPage() {
               isLoading={isLoading}
               personaId={personaId}
               onPersonaChange={setPersonaId}
+              modelId={modelId}
+              onModelChange={setModelId}
             />
           </>
         )}

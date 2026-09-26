@@ -1,0 +1,72 @@
+export interface NimModel {
+  /** Chave estável enviada pelo cliente (`app/page.tsx`) pro backend
+   * (`app/api/chat/route.ts`) via `body.modelId`. Só existe/faz sentido
+   * quando LLM_PROVIDER=nvidia — ver `lib/llm/provider.ts`. */
+  id: string;
+  /** Label curto exibido no seletor de modelo da UI. */
+  label: string;
+  /** Descrição curta de pra que esse modelo é melhor — mostrada no
+   * dropdown do Composer e na tela de Configurações. */
+  description: string;
+  /** String exata esperada pelo campo "model" da API da NVIDIA NIM
+   * (https://integrate.api.nvidia.com/v1) — copiada da página de cada
+   * modelo em build.nvidia.com. Se a NVIDIA renomear/aposentar um modelo,
+   * é só atualizar aqui. */
+  modelString: string;
+}
+
+/**
+ * Modelos disponíveis pro seletor na UI quando LLM_PROVIDER=nvidia.
+ * Curadoria pequena de propósito (catálogo completo tem 100+ modelos em
+ * build.nvidia.com) — só modelos com function-calling confirmado, já que
+ * as tools do bot (lib/skills/) dependem disso.
+ *
+ * Pra adicionar um modelo novo: só acrescente um item aqui (confirme o
+ * `modelString` exato na página do modelo em build.nvidia.com). Nenhum
+ * outro arquivo precisa mudar — `route.ts` lê pelo `id` recebido no corpo
+ * da requisição, e `page.tsx`/`Composer.tsx` renderizam o seletor a partir
+ * desta lista.
+ */
+export const NIM_MODELS: NimModel[] = [
+  {
+    id: "nemotron-super",
+    label: "Nemotron Super",
+    description:
+      "Melhor equilíbrio geral: raciocínio agentic, contexto de 1M tokens, ótimo em " +
+      "planejamento e uso de ferramentas. Bom default pra maioria das conversas.",
+    modelString: "nvidia/nemotron-3-super-120b-a12b",
+  },
+  {
+    id: "nemotron-lightning",
+    label: "Nemotron Lightning",
+    description:
+      "Versão mais rápida e leve da família Nemotron — respostas mais ágeis, custo " +
+      "menor. Boa escolha quando velocidade importa mais que profundidade.",
+    modelString: "nvidia/nemotron-3.5-lightning-30b-a3b",
+  },
+  {
+    id: "deepseek-v4-flash",
+    label: "DeepSeek V4.1 Flash",
+    description:
+      "Forte em código, documentos longos e entendimento de imagem — bom pra " +
+      "perguntas técnicas complexas ou anexos grandes.",
+    modelString: "deepseek-ai/deepseek-v4.1-flash",
+  },
+  {
+    id: "mistral-nemotron",
+    label: "Mistral Nemotron",
+    description:
+      "Feito pra seguir instruções à risca e workflows com várias ferramentas em " +
+      "sequência. Boa opção pra tarefas passo a passo bem definidas.",
+    modelString: "mistralai/mistral-nemotron",
+  },
+];
+
+export const DEFAULT_MODEL_ID = NIM_MODELS[0]!.id;
+
+/** Resolve um `modelId` (possivelmente inválido/ausente, já que vem do
+ * corpo de uma requisição HTTP) pra um `NimModel` concreto, caindo pra
+ * default em vez de derrubar a rota com um `undefined`. */
+export function getNimModel(id: string | undefined): NimModel {
+  return NIM_MODELS.find((m) => m.id === id) ?? NIM_MODELS[0]!;
+}
