@@ -51,7 +51,17 @@ export function getModel(nvidiaModelOverride?: string): LanguageModel {
 
   switch (provider) {
     case "nvidia":
-      return nvidia(
+      // `.chat(...)` explícito, NUNCA `nvidia(...)` direto: chamar o
+      // provider como função cai no default do @ai-sdk/openai, que desde a
+      // v2 é a Responses API (POST /v1/responses) — a NVIDIA NIM só
+      // implementa a Chat Completions API clássica (POST
+      // /v1/chat/completions, é o que todo exemplo de build.nvidia.com usa
+      // via `client.chat.completions.create(...)`). Sem o `.chat(...)`, TODO
+      // modelo aqui vira "404 page not found" — foi a causa real dos
+      // modelos "travando"/respondendo vazio (o 404 acontece na resposta,
+      // por isso não aparecia erro nenhum específico antes do fix em
+      // describeProviderError, ver route.ts).
+      return nvidia.chat(
         nvidiaModelOverride || process.env.NVIDIA_MODEL || "nvidia/nemotron-3-super-120b-a12b",
       );
 
