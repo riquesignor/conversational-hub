@@ -89,6 +89,20 @@ export const NIM_MODELS: NimModel[] = [
     maxOutputTokens: 4096,
     supportsImages: false,
   },
+  {
+    id: "kimi-k3",
+    label: "Kimi K3",
+    description:
+      "Modelo grande e versátil (Moonshot AI) — raciocínio forte, function calling e " +
+      "entendimento de imagem. Alternativa ao DeepSeek pra anexos visuais quando " +
+      "precisar de mais poder de raciocínio.",
+    modelString: "moonshotai/kimi-k3",
+    // Também é "reasoning" (mesmo caso do Nemotron Lightning acima) — com
+    // pouco orçamento de tokens o raciocínio consome tudo e a resposta final
+    // sai vazia/degenerada. Confirmado funcionando bem com 4096.
+    maxOutputTokens: 16384,
+    supportsImages: true,
+  },
 ];
 
 export const DEFAULT_MODEL_ID = NIM_MODELS[0]!.id;

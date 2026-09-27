@@ -99,3 +99,11 @@ isso, a preferência confirmada do usuário é **commit + push juntos numa
 tacada só** sempre que ele pedir pra "commitar" (não precisa perguntar se
 é só commit ou também push — assuma os dois, a menos que ele diga o
 contrário pra aquele pedido específico).
+
+**Não adicione a linha `Co-Authored-By: Claude ...` nas mensagens de
+commit deste projeto.** O usuário não quer aparecer como "riquesignor +
+Claude" nos commits no GitHub. Isso vale só pra commits NOVOS — os que já
+foram pushados com essa linha continuam mostrando o coautor (reescrever
+isso exigiria `git rebase` + `git push --force` na `main`, uma operação
+destrutiva que não deve ser feita sem pedido explícito e separado do
+usuário, dado o risco pra branch de produção descrito acima).
