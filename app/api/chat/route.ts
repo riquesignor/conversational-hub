@@ -99,8 +99,14 @@ function describeProviderError(error: unknown): string {
         }
     }
   }
-  if (error instanceof Error && /timeout|aborted|timed out/i.test(error.message)) {
-    return "O provider demorou demais pra responder (timeout).";
+  // O timeout configurado em streamText (ver `timeout:` abaixo) lança um
+  // DOMException com name "TimeoutError" — checa por name E por message
+  // (regex) porque DOMException nem sempre é `instanceof Error` dependendo
+  // do runtime, então duck-typing é mais seguro que instanceof aqui.
+  const name = (error as { name?: unknown } | null)?.name;
+  const message = (error as { message?: unknown } | null)?.message;
+  if (name === "TimeoutError" || (typeof message === "string" && /timeout|aborted|timed out/i.test(message))) {
+    return "O provider demorou demais pra responder (timeout). Tente de novo ou troque de modelo no seletor.";
   }
   return "Erro ao gerar resposta. Verifique a chave de API e o provider configurados.";
 }
@@ -258,6 +264,16 @@ export async function POST(req: Request) {
     // Sem isso, a AI SDK para no primeiro tool call e nunca gera a
     // resposta em texto que usa o resultado da tool.
     stopWhen: stepCountIs(5),
+    // Sem isso, um provider que trava (confirmado: DeepSeek V4.1 Flash às
+    // vezes não manda NENHUM byte de volta, principalmente com imagem —
+    // testado direto na API da NVIDIA, ficou 70s+ sem responder) só é
+    // interrompido quando a Vercel mata a function no maxDuration (60s, ver
+    // topo do arquivo) — e essa morte é do PLATAFORMA, não um erro que a
+    // AI SDK consegue capturar, então o cliente não recebe nem o onError
+    // abaixo: a tela só fica travada em branco pra sempre. firstChunkMs
+    // aborta ANTES disso (dentro do nosso próprio código), o que dispara
+    // onError/describeProviderError normalmente e mostra um erro de verdade.
+    timeout: { firstChunkMs: 45_000, totalMs: 55_000 },
     onFinish: ({ text }) => {
       if (!text) return;
       store

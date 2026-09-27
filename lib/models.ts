@@ -73,8 +73,9 @@ export const NIM_MODELS: NimModel[] = [
     id: "deepseek-v4-flash",
     label: "DeepSeek V4.1 Flash",
     description:
-      "Forte em código, documentos longos e entendimento de imagem — bom pra " +
-      "perguntas técnicas complexas ou anexos grandes.",
+      "Forte em código, documentos longos e entendimento de imagem. Confirmado " +
+      "instável com imagem no endpoint grátis da NVIDIA (às vezes trava sem " +
+      "responder) — se isso acontecer, clique em \"Parar\" e tente o Kimi K3.",
     modelString: "deepseek-ai/deepseek-v4.1-flash",
     maxOutputTokens: 8192,
     supportsImages: true,

@@ -44,3 +44,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code — estado/config local, não deve depender do gitignore global
+# do desenvolvedor (evita vazar path/estado de máquina em quem clonar o
+# repo e também usar a ferramenta aqui)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
