@@ -200,7 +200,7 @@ export default function ChatPage() {
   // também viaja automaticamente no corpo de cada requisição — é o que
   // app/api/chat/route.ts lê pra saber em qual conversa persistir cada
   // mensagem (sempre sob o uid da sessão, nunca um valor solto do cliente).
-  const { messages, sendMessage, status, error, regenerate, setMessages } = useChat({
+  const { messages, sendMessage, status, error, regenerate, stop, setMessages } = useChat({
     id: activeThreadId,
     transport: new DefaultChatTransport({
       api: "/api/chat",
@@ -516,6 +516,7 @@ export default function ChatPage() {
               onInputChange={setInput}
               onSubmit={handleSend}
               isLoading={isLoading}
+              onStop={stop}
               personaId={personaId}
               onPersonaChange={setPersonaId}
               modelId={modelId}

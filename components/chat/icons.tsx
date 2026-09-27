@@ -116,6 +116,14 @@ export function SendIcon({ size = 15, className }: IconProps) {
   );
 }
 
+export function StopIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+    </svg>
+  );
+}
+
 // Não veio do design canvas original (o mock não tinha tela de login/conta)
 // — desenhado à mão no mesmo traçado (stroke, viewBox 24, cap/join round)
 // dos ícones acima, pra não destoar.

@@ -11,7 +11,7 @@ import {
   validateAttachment,
   type AttachmentKind,
 } from "@/lib/attachments/constraints";
-import { PlusIcon, ImageIcon, PdfIcon, FileIcon, ChevronDownIcon, SendIcon } from "./icons";
+import { PlusIcon, ImageIcon, PdfIcon, FileIcon, ChevronDownIcon, SendIcon, StopIcon } from "./icons";
 
 /** Anexo ainda não enviado, vivendo só no estado local do Composer — style
  * de `PendingMessage` comum em composers de chat: existe só até o submit,
@@ -34,6 +34,7 @@ interface ComposerProps {
   onInputChange: (value: string) => void;
   onSubmit: (attachments: PendingAttachment[]) => void;
   isLoading: boolean;
+  onStop: () => void;
   personaId: string;
   onPersonaChange: (id: string) => void;
   modelId: string;
@@ -67,6 +68,7 @@ export function Composer({
   onInputChange,
   onSubmit,
   isLoading,
+  onStop,
   personaId,
   onPersonaChange,
   modelId,
@@ -238,14 +240,25 @@ export function Composer({
           disabled={isLoading}
           className="min-w-0 flex-1 rounded-[var(--radius-lg)] border border-divider bg-input-bg px-4 py-2.5 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
         />
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="flex flex-none items-center gap-1.5 rounded-[var(--radius-sm)] bg-accent-strong px-4 py-2.5 text-sm font-bold text-on-accent transition-[transform,background-color] active:scale-95 active:bg-accent-deep disabled:opacity-40"
-        >
-          <SendIcon />
-          Enviar
-        </button>
+        {isLoading ? (
+          <button
+            type="button"
+            onClick={onStop}
+            className="flex flex-none items-center gap-1.5 rounded-[var(--radius-sm)] bg-accent-strong px-4 py-2.5 text-sm font-bold text-on-accent transition-[transform,background-color] active:scale-95 active:bg-accent-deep"
+          >
+            <StopIcon />
+            Parar
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className="flex flex-none items-center gap-1.5 rounded-[var(--radius-sm)] bg-accent-strong px-4 py-2.5 text-sm font-bold text-on-accent transition-[transform,background-color] active:scale-95 active:bg-accent-deep disabled:opacity-40"
+          >
+            <SendIcon />
+            Enviar
+          </button>
+        )}
       </form>
 
       <div className="mx-auto flex w-full max-w-3xl items-start gap-2">
