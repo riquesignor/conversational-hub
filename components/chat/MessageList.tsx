@@ -21,7 +21,7 @@ type Row =
   | { kind: "load-older" }
   | { kind: "message"; message: UIMessage }
   | { kind: "typing" }
-  | { kind: "error" };
+  | { kind: "error"; message: string };
 
 function rowKey(row: Row): string {
   switch (row.kind) {
@@ -132,7 +132,7 @@ export function MessageList({
     if (hasOlderMessages) result.push({ kind: "load-older" });
     for (const message of messages) result.push({ kind: "message", message });
     if (isSubmitted) result.push({ kind: "typing" });
-    if (error) result.push({ kind: "error" });
+    if (error) result.push({ kind: "error", message: error.message || "Algo travou aqui." });
     return result;
   }, [messages, hasOlderMessages, isSubmitted, error]);
 
@@ -272,7 +272,7 @@ export function MessageList({
       case "error":
         return (
           <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[var(--radius-md)] border border-divider bg-surface px-3 py-2.5">
-            <p className="m-0 text-sm">Algo travou aqui. Tenta de novo?</p>
+            <p className="m-0 text-sm">{row.message}</p>
             <button
               onClick={onRetry}
               className="flex-none rounded-md border border-divider px-2.5 py-1.5 text-xs font-semibold text-accent-text transition-colors hover:bg-surface-2"

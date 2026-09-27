@@ -92,5 +92,10 @@ mudanças que precisam de revisão antes de ir ao ar.
 
 Você (Claude Code) pode **editar arquivos deste projeto livremente**
 quando o usuário pedir, sem precisar confirmar cada edição individual.
-**`git commit` e `git push` só quando o usuário pedir explicitamente** —
-nunca por iniciativa própria, dado o auto-deploy na Vercel descrito acima.
+
+`git commit` e `git push` só quando o usuário pedir explicitamente — nunca
+por iniciativa própria, dado o auto-deploy na Vercel descrito acima. Dito
+isso, a preferência confirmada do usuário é **commit + push juntos numa
+tacada só** sempre que ele pedir pra "commitar" (não precisa perguntar se
+é só commit ou também push — assuma os dois, a menos que ele diga o
+contrário pra aquele pedido específico).

@@ -3,6 +3,7 @@ import {
   streamText,
   stepCountIs,
   convertToModelMessages,
+  APICallError,
   type UIMessage,
   type FileUIPart,
 } from "ai";
@@ -11,7 +12,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getTools } from "@/lib/skills";
 import { getStore } from "@/lib/db";
 import { getPersona } from "@/lib/personas";
-import { getNimModel } from "@/lib/models";
+import { getNimModel, NIM_MODELS } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth/session";
 import { truncate } from "@/lib/format";
 import { MAX_ATTACHMENTS_PER_MESSAGE, validateAttachment } from "@/lib/attachments/constraints";
@@ -19,7 +20,12 @@ import { uploadAttachment } from "@/lib/storage/attachments";
 import type { StoredAttachment } from "@/lib/db/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+// Modelo "reasoning" (Nemotron Lightning, ver lib/models.ts) pode demorar
+// mais que uma resposta comum antes do primeiro token visível — 30s batia
+// o timeout da function no meio da geração, derrubando a conexão sem erro
+// claro pro cliente (aparecia como "travou"). Confirme que 60s cabe no seu
+// plano da Vercel (Hobby cobre até 60s; se seu plano for menor, ajuste).
+export const maxDuration = 60;
 
 // Instruções que valem pra qualquer persona (ferramentas disponíveis,
 // idioma) — o tom de voz em si vive em `lib/personas.ts` e é concatenado
@@ -66,6 +72,37 @@ function textOf(message: UIMessage | undefined): string {
 function fileParts(message: UIMessage | undefined): FileUIPart[] {
   if (!message) return [];
   return message.parts.filter((p): p is FileUIPart => p.type === "file");
+}
+
+/** Traduz o erro do provider (NVIDIA/Google/OpenAI) pra uma mensagem curta
+ * e SEGURA de mostrar pro usuário final — nunca o `responseBody`/`message`
+ * cru do provider (pode conter detalhe interno do request), só a categoria
+ * do problema a partir do `statusCode`. O erro completo (esse sim, com todo
+ * detalhe) sempre vai pro `console.error` de quem chama esta função, que
+ * cai no Runtime Log da Vercel — é lá que dá pra confirmar a causa exata
+ * (ex.: "model not found" quando o modelId configurado não existe mais no
+ * catálogo do provider). Ver lib/models.ts sobre modelo errado ser a causa
+ * mais comum de um provider "travar" sem erro nenhum aparecer na tela. */
+function describeProviderError(error: unknown): string {
+  if (APICallError.isInstance(error)) {
+    switch (error.statusCode) {
+      case 401:
+      case 403:
+        return "Chave de API inválida ou sem permissão pro provider configurado.";
+      case 404:
+        return "Modelo não encontrado no provider — verifique o NVIDIA_MODEL/modelo escolhido em lib/models.ts.";
+      case 429:
+        return "Limite de requisições do provider atingido. Espere um pouco e tente de novo.";
+      default:
+        if (error.statusCode && error.statusCode >= 500) {
+          return "O provider de IA está com instabilidade no momento. Tente de novo em instantes.";
+        }
+    }
+  }
+  if (error instanceof Error && /timeout|aborted|timed out/i.test(error.message)) {
+    return "O provider demorou demais pra responder (timeout).";
+  }
+  return "Erro ao gerar resposta. Verifique a chave de API e o provider configurados.";
 }
 
 export async function POST(req: Request) {
@@ -128,6 +165,27 @@ export async function POST(req: Request) {
     }
   }
 
+  // Nem todo modelo do catálogo NVIDIA lê imagem (ver `supportsImages` em
+  // lib/models.ts) — mandar mesmo assim não dá erro do provider, só some: o
+  // modelo ignora o conteúdo que não entende e às vezes responde vazio (ver
+  // describeProviderError acima sobre erro mascarado; aqui nem chega a ser
+  // erro, então bloqueamos ANTES de gastar a chamada).
+  const nimModel = getNimModel(modelId);
+  const hasImageAttachment = userFileParts.some((p) => p.mediaType.startsWith("image/"));
+  if ((process.env.LLM_PROVIDER || "nvidia") === "nvidia" && hasImageAttachment && !nimModel.supportsImages) {
+    const visionModel = NIM_MODELS.find((m) => m.supportsImages);
+    return Response.json(
+      {
+        error:
+          `O modelo "${nimModel.label}" não processa imagens.` +
+          (visionModel
+            ? ` Troque pro "${visionModel.label}" no seletor da barra de mensagem e envie de novo.`
+            : ""),
+      },
+      { status: 400 },
+    );
+  }
+
   // Persistência é best-effort: nunca deve derrubar a resposta do chat. Uma
   // mensagem só com anexo (sem legenda) também conta como "tem o que salvar"
   // — por isso o guard abaixo não é só `if (userText)` como antes.
@@ -175,7 +233,13 @@ export async function POST(req: Request) {
   const result = streamText({
     // modelId escolhido no seletor da UI (lib/models.ts) — só tem efeito de
     // fato quando LLM_PROVIDER=nvidia (ver comentário em getModel()).
-    model: getModel(getNimModel(modelId).modelString),
+    model: getModel(nimModel.modelString),
+    // Sem isso, cada modelo cai no `max_tokens` default do endpoint da
+    // NVIDIA — pequeno demais pro Nemotron Lightning (modelo "reasoning",
+    // gasta parte do orçamento "pensando" antes do texto final) e faz o
+    // provider devolver resposta vazia/truncada sem erro nenhum. Ver
+    // maxOutputTokens em lib/models.ts.
+    maxOutputTokens: nimModel.maxOutputTokens,
     system: buildSystemPrompt(personaId),
     messages: await convertToModelMessages(messages),
     // Tools próprias (lib/skills/) + busca nativa do provider ativo (ver
@@ -220,11 +284,12 @@ export async function POST(req: Request) {
   return result.toUIMessageStreamResponse({
     // Mesma lógica: a AI SDK mascara erros de servidor por padrão pra não
     // vazar detalhes sensíveis pro cliente. Logamos o erro real aqui
-    // também (fica no Runtime Log da Vercel) e devolvemos uma mensagem
-    // só um pouco mais específica pro usuário final.
+    // também (fica no Runtime Log da Vercel) e devolvemos uma categoria
+    // seguro de mostrar (ver describeProviderError acima) em vez do texto
+    // cru do provider ou de uma mensagem genérica sempre igual.
     onError: (error) => {
       console.error("[api/chat] stream response error:", error);
-      return "Erro ao gerar resposta. Verifique a chave de API e o provider configurados.";
+      return describeProviderError(error);
     },
   });
 }

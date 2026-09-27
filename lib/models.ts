@@ -13,6 +13,20 @@ export interface NimModel {
    * modelo em build.nvidia.com. Se a NVIDIA renomear/aposentar um modelo,
    * é só atualizar aqui. */
   modelString: string;
+  /** `max_tokens` a mandar pro provider (`streamText({ maxOutputTokens })`).
+   * SEM isso, cada modelo cai no default do próprio endpoint da NVIDIA, que
+   * varia muito e pode truncar a resposta antes de gerar texto nenhum —
+   * principalmente em modelo "reasoning" (ver `nemotron-lightning` abaixo),
+   * que gasta parte do orçamento de tokens "pensando" antes de responder.
+   * Valores aqui espelham o exemplo oficial de cada modelo em
+   * build.nvidia.com (aba "Build" → código de exemplo). */
+  maxOutputTokens: number;
+  /** Só true pro modelo que a NVIDIA lista com "Input Modalities: Image"
+   * (ver build.nvidia.com). Mandar imagem pra um modelo texto-only não dá
+   * erro claro — o request "funciona" mas o modelo não sabe o que fazer
+   * com o conteúdo, e o resultado é uma resposta vazia (ver route.ts, que
+   * bloqueia isso antes de chamar o provider). */
+  supportsImages: boolean;
 }
 
 /**
@@ -35,6 +49,8 @@ export const NIM_MODELS: NimModel[] = [
       "Melhor equilíbrio geral: raciocínio agentic, contexto de 1M tokens, ótimo em " +
       "planejamento e uso de ferramentas. Bom default pra maioria das conversas.",
     modelString: "nvidia/nemotron-3-super-120b-a12b",
+    maxOutputTokens: 4096,
+    supportsImages: false,
   },
   {
     id: "nemotron-lightning",
@@ -43,6 +59,15 @@ export const NIM_MODELS: NimModel[] = [
       "Versão mais rápida e leve da família Nemotron — respostas mais ágeis, custo " +
       "menor. Boa escolha quando velocidade importa mais que profundidade.",
     modelString: "nvidia/nemotron-3.5-lightning-30b-a3b",
+    // É um modelo "reasoning": por padrão gasta parte do orçamento de
+    // tokens "pensando" antes do texto final (ver comentário do campo
+    // acima) — o exemplo oficial da NVIDIA usa max_tokens=16384 por causa
+    // disso. Não dá pra desligar esse modo de raciocínio por aqui (a AI SDK
+    // não expõe o `extra_body.chat_template_kwargs` específico da NVIDIA
+    // pra isso) — se ainda travar/vier vazio com esse orçamento, é sinal de
+    // que precisa de mais tokens ainda ou de um cliente HTTP raw.
+    maxOutputTokens: 16384,
+    supportsImages: false,
   },
   {
     id: "deepseek-v4-flash",
@@ -51,6 +76,8 @@ export const NIM_MODELS: NimModel[] = [
       "Forte em código, documentos longos e entendimento de imagem — bom pra " +
       "perguntas técnicas complexas ou anexos grandes.",
     modelString: "deepseek-ai/deepseek-v4.1-flash",
+    maxOutputTokens: 8192,
+    supportsImages: true,
   },
   {
     id: "mistral-nemotron",
@@ -59,6 +86,8 @@ export const NIM_MODELS: NimModel[] = [
       "Feito pra seguir instruções à risca e workflows com várias ferramentas em " +
       "sequência. Boa opção pra tarefas passo a passo bem definidas.",
     modelString: "mistralai/mistral-nemotron",
+    maxOutputTokens: 4096,
+    supportsImages: false,
   },
 ];
 
