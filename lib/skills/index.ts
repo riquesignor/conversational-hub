@@ -7,6 +7,7 @@ import { listSkillsTool } from "./list-skills";
 import { webSearchTool } from "./web-search";
 import { getNewsTool } from "./get-news";
 import { getWeatherTool } from "./get-weather";
+import { getDeploymentStatusTool } from "./get-deployment-status";
 
 export { SKILLS_CATALOG, type SkillMeta } from "./catalog";
 
@@ -29,5 +30,6 @@ export function getTools(): ToolSet {
     web_search: webSearchTool,
     get_news: getNewsTool,
     get_weather: getWeatherTool,
+    get_deployment_status: getDeploymentStatusTool,
   };
 }

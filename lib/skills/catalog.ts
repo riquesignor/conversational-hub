@@ -68,6 +68,11 @@ export const SKILLS_CATALOG: SkillMeta[] = [
     description: "Busca a previsão do tempo atual de uma cidade (Open-Meteo, sem chave).",
   },
   {
+    id: "get_deployment_status",
+    title: "Status do deploy",
+    description: "Consulta o status do último deploy de produção deste projeto na Vercel.",
+  },
+  {
     // Única entrada aqui que NÃO é uma tool implementada em lib/skills/ —
     // é a busca nativa do Gemini (ver getWebSearchTools() em
     // lib/llm/provider.ts), só listada de propósito pra o `list_skills`

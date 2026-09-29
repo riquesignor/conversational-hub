@@ -37,12 +37,16 @@ const BASE_INSTRUCTIONS =
   "Você tem ferramentas (tools) disponíveis — use-as sempre que fizerem sentido em " +
   "vez de tentar adivinhar: data/hora atual, contas matemáticas, busca de Pokémon " +
   'na PokéAPI, consulta de endereço por CEP, busca na web em tempo real, notícias ' +
-  "recentes (política brasileira, F1, F2, WEC) e previsão do tempo de uma cidade. " +
+  "recentes (política brasileira, F1, F2, WEC), previsão do tempo de uma cidade e " +
+  "status do último deploy deste projeto na Vercel. " +
   'Se o usuário perguntar o que você sabe fazer, use a tool ' +
   '"list_skills" em vez de responder de memória, porque a lista pode mudar. ' +
-  "Você também consegue LER imagens, PDFs e arquivos de texto que o usuário anexar " +
-  "diretamente na mensagem — descreva, transcreva ou responda sobre o conteúdo " +
-  "deles normalmente, sem pedir pra colar o texto. Quando a pergunta depender de " +
+  "Você também consegue LER anexos que o usuário mandar diretamente na mensagem — " +
+  "descreva, transcreva ou responda sobre o conteúdo deles normalmente, sem pedir " +
+  "pra colar o texto. Atenção: com o provider NVIDIA (o padrão deste projeto), só " +
+  "imagem funciona como anexo — PDF e arquivo de texto são bloqueados antes de " +
+  "chegar até você (o usuário já recebe um aviso pra colar o conteúdo direto ou " +
+  "trocar de provider). Quando a pergunta depender de " +
   "informação que pode ter mudado depois do seu treinamento (notícias, preços, " +
   "versões de software, eventos recentes), prefira buscar na web em vez de " +
   "responder de memória — e diga que a informação veio de uma busca.";
@@ -188,6 +192,36 @@ export async function POST(req: Request) {
           (visionModel
             ? ` Troque pro "${visionModel.label}" no seletor da barra de mensagem e envie de novo.`
             : ""),
+      },
+      { status: 400 },
+    );
+  }
+
+  // Verificado direto em node_modules/@ai-sdk/openai/dist/index.js: o
+  // provider "nvidia" (que reaproveita o conversor de mensagens do
+  // @ai-sdk/openai, ver getModel() em lib/llm/provider.ts) só sabe converter
+  // anexo de IMAGEM (vira `image_url`) e PDF (vira um content-part `file`
+  // com `file_data`, formato específico da API da própria OpenAI). Qualquer
+  // OUTRO tipo de arquivo — incluindo texto/.txt/.md/.csv, que este projeto
+  // também aceita como anexo (ver ATTACHMENT_KINDS em
+  // lib/attachments/constraints.ts) — faz o SDK lançar
+  // UnsupportedFunctionalityError durante a conversão da mensagem, ANTES de
+  // qualquer chamada de rede. E mesmo o PDF é incerto: a NVIDIA NIM expõe uma
+  // Chat Completions API clássica, que não documenta suporte ao content-part
+  // `file`/`file_data` da OpenAI — não há garantia de que o modelo NIM
+  // realmente leia o PDF em vez de só ignorar ou dar erro 400. Por isso
+  // bloqueamos os dois ANTES de gastar a chamada, em vez de deixar virar um
+  // erro genérico e confuso via describeProviderError (que não reconhece
+  // UnsupportedFunctionalityError).
+  const hasPdfAttachment = userFileParts.some((p) => p.mediaType === "application/pdf");
+  const hasTextFileAttachment = userFileParts.some((p) => p.mediaType.startsWith("text/"));
+  if ((process.env.LLM_PROVIDER || "nvidia") === "nvidia" && (hasPdfAttachment || hasTextFileAttachment)) {
+    return Response.json(
+      {
+        error:
+          "Modelos NVIDIA (NIM) não leem PDF nem arquivo de texto anexado — só imagem. " +
+          "Cole o conteúdo direto na mensagem, ou troque pra LLM_PROVIDER=google (Gemini lê " +
+          "PDF e texto nativamente).",
       },
       { status: 400 },
     );
