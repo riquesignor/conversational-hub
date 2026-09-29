@@ -51,6 +51,23 @@ export const SKILLS_CATALOG: SkillMeta[] = [
     description: "Lista tudo que o bot sabe fazer hoje.",
   },
   {
+    id: "web_search",
+    title: "Busca na web",
+    description:
+      "Pesquisa na internet em tempo real via Tavily — funciona com qualquer provider de LLM ativo.",
+  },
+  {
+    id: "get_news",
+    title: "Notícias",
+    description:
+      "Busca manchetes recentes de política brasileira, F1, F2 ou WEC via feeds RSS.",
+  },
+  {
+    id: "get_weather",
+    title: "Previsão do tempo",
+    description: "Busca a previsão do tempo atual de uma cidade (Open-Meteo, sem chave).",
+  },
+  {
     // Única entrada aqui que NÃO é uma tool implementada em lib/skills/ —
     // é a busca nativa do Gemini (ver getWebSearchTools() em
     // lib/llm/provider.ts), só listada de propósito pra o `list_skills`

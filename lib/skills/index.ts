@@ -4,6 +4,9 @@ import { calculateTool } from "./calculate";
 import { lookupPokemonTool } from "./lookup-pokemon";
 import { lookupCepTool } from "./lookup-cep";
 import { listSkillsTool } from "./list-skills";
+import { webSearchTool } from "./web-search";
+import { getNewsTool } from "./get-news";
+import { getWeatherTool } from "./get-weather";
 
 export { SKILLS_CATALOG, type SkillMeta } from "./catalog";
 
@@ -23,5 +26,8 @@ export function getTools(): ToolSet {
     lookup_pokemon: lookupPokemonTool,
     lookup_cep: lookupCepTool,
     list_skills: listSkillsTool,
+    web_search: webSearchTool,
+    get_news: getNewsTool,
+    get_weather: getWeatherTool,
   };
 }

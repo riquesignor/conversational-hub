@@ -36,8 +36,9 @@ const BASE_INSTRUCTIONS =
   "Responda em português por padrão, a menos que o usuário escreva em outro idioma. " +
   "Você tem ferramentas (tools) disponíveis — use-as sempre que fizerem sentido em " +
   "vez de tentar adivinhar: data/hora atual, contas matemáticas, busca de Pokémon " +
-  'na PokéAPI, consulta de endereço por CEP e busca na web em tempo real (quando ' +
-  'disponível). Se o usuário perguntar o que você sabe fazer, use a tool ' +
+  'na PokéAPI, consulta de endereço por CEP, busca na web em tempo real, notícias ' +
+  "recentes (política brasileira, F1, F2, WEC) e previsão do tempo de uma cidade. " +
+  'Se o usuário perguntar o que você sabe fazer, use a tool ' +
   '"list_skills" em vez de responder de memória, porque a lista pode mudar. ' +
   "Você também consegue LER imagens, PDFs e arquivos de texto que o usuário anexar " +
   "diretamente na mensagem — descreva, transcreva ou responda sobre o conteúdo " +
