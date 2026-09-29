@@ -20,23 +20,29 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
  * Além do gate de sessão, este arquivo agora também é o único lugar do
  * projeto por onde passa toda requisição (exceto os caminhos excluídos no
  * `matcher` abaixo) — por isso é aqui que os headers de segurança da
- * aplicação inteira são setados, incluindo uma CSP com nonce por request
- * (padrão oficial do Next.js — ver
- * https://nextjs.org/docs/app/guides/content-security-policy). O nonce vai
- * tanto no header da REQUEST (`x-nonce`, pra Server Components lerem via
- * `headers()` se precisarem) quanto no header `Content-Security-Policy` —
- * o Next detecta o nonce presente nesse header já na hora de renderizar e
- * aplica sozinho em todo <script> que ele mesmo injeta (hydration/
- * streaming), sem precisar passar `nonce={...}` manualmente em cada
- * componente.
+ * aplicação inteira são setados, incluindo uma CSP.
+ *
+ * ATENÇÃO — histórico: a primeira versão disto usava nonce por request +
+ * 'strict-dynamic' em script-src, seguindo o padrão documentado em
+ * https://nextjs.org/docs/app/guides/content-security-policy. Em produção
+ * (Next 16.3.4) o Next NÃO aplicou o nonce sozinho nos scripts que ele
+ * mesmo injeta (hydration payload / chunks) — o navegador bloqueou tudo,
+ * inclusive script inline, e a página não hidratava. Reduzido pra
+ * `'unsafe-inline'` (mais permissivo, mas testado/funcionando de verdade)
+ * até investigar por que o auto-nonce não funcionou nessa versão. Ver
+ * commit que reverteu isso pra contexto completo.
  */
-function buildCsp(nonce: string): string {
+function buildCsp(): string {
   return [
     `default-src 'self'`,
-    // 'strict-dynamic' + nonce é o padrão "CSP estrita" recomendado pelo
-    // Next: scripts com o nonce certo podem carregar outros scripts (ex.:
-    // chunks do bundler) sem precisar listar cada origem manualmente.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // 'unsafe-inline' aqui é uma escolha consciente, não um descuido: a
+    // versão com nonce quebrou a hidratação em produção (ver comentário
+    // acima). Sem nenhum vetor de XSS conhecido neste projeto (sem
+    // dangerouslySetInnerHTML, sem eval, sem lib de markdown — conteúdo do
+    // LLM sempre passa por interpolação JSX normal, que o React escapa
+    // sozinho), a perda de proteção é pequena; o resto da CSP (bloqueio de
+    // script de origem externa, frame-ancestors, etc.) continua valendo.
+    `script-src 'self' 'unsafe-inline'`,
     // 'unsafe-inline' só pro style (não pro script): cobre `style={{...}}`
     // inline do React/Tailwind, que CSP nenhuma versão de nonce consegue
     // liberar (é uma limitação conhecida da spec — nonce em style-src só
@@ -78,15 +84,10 @@ function applySecurityHeaders(res: NextResponse, csp: string): NextResponse {
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const nonce = crypto.randomUUID().replace(/-/g, "");
-  const csp = buildCsp(nonce);
-
-  const requestHeaders = new Headers(req.headers);
-  requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", csp);
+  const csp = buildCsp();
 
   if (pathname.startsWith("/api") || pathname.startsWith("/login")) {
-    return applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), csp);
+    return applySecurityHeaders(NextResponse.next(), csp);
   }
 
   const hasSession = req.cookies.has(SESSION_COOKIE_NAME);
@@ -94,7 +95,7 @@ export function proxy(req: NextRequest) {
     return applySecurityHeaders(NextResponse.redirect(new URL("/login", req.url)), csp);
   }
 
-  return applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), csp);
+  return applySecurityHeaders(NextResponse.next(), csp);
 }
 
 export const config = {
